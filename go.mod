@@ -11,10 +11,10 @@ require (
 	github.com/benpate/data-mongo v0.33.0
 	github.com/benpate/data-slice v0.1.0
 	github.com/benpate/delta v0.1.0
-	github.com/benpate/derp v0.37.0
+	github.com/benpate/derp v0.39.0
 	github.com/benpate/digit v0.15.0
 	github.com/benpate/digital-dome v0.5.0
-	github.com/benpate/exp v0.10.0
+	github.com/benpate/exp v0.11.0
 	github.com/benpate/exp-builder v0.11.0
 	github.com/benpate/form v0.27.0
 	github.com/benpate/geo v0.1.1
@@ -24,12 +24,13 @@ require (
 	github.com/benpate/mediaserver v0.16.0
 	github.com/benpate/re v0.5.1
 	github.com/benpate/remote v0.23.0
-	github.com/benpate/rosetta v0.33.0
+	github.com/benpate/rosetta v0.35.0
 	github.com/benpate/sherlock v0.12.0
 	github.com/benpate/sniff v0.2.0
 	github.com/benpate/steranko v0.29.0
 	github.com/benpate/table v0.8.0
-	github.com/benpate/toot v0.4.0
+	github.com/benpate/toot v0.5.0
+	github.com/benpate/toot-echo v0.0.0-00010101000000-000000000000
 	github.com/benpate/turbine v0.7.0
 	github.com/benpate/uri v0.5.0
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -41,6 +42,7 @@ require (
 	github.com/fatih/color v1.19.0
 	github.com/fclairamb/afero-s3 v0.3.1
 	github.com/fsnotify/fsnotify v1.10.1
+	github.com/go-playground/form/v4 v4.3.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/feeds v1.2.0
 	github.com/hairyhenderson/go-fsimpl v0.4.2
@@ -58,19 +60,19 @@ require (
 	github.com/rs/zerolog v1.35.1
 	github.com/spf13/afero v1.15.0
 	github.com/spf13/pflag v1.0.10
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	github.com/stripe/stripe-go/v78 v78.12.0
 	github.com/tdewolff/minify/v2 v2.24.13
 	github.com/timewasted/go-accept-headers v0.0.0-20130320203746-c78f304b1b09
 	github.com/xhit/go-simple-mail/v2 v2.16.0
 	github.com/yeqown/go-qrcode/v2 v2.2.5
 	github.com/yeqown/go-qrcode/writer/standard v1.3.0
-	github.com/yuin/goldmark v1.8.2
+	github.com/yuin/goldmark v1.8.5
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
 	go.abhg.dev/goldmark/anchor v0.2.0
 	go.mongodb.org/mongo-driver v1.17.9
-	golang.org/x/crypto v0.54.0
-	golang.org/x/net v0.57.0
+	golang.org/x/crypto v0.55.0
+	golang.org/x/net v0.58.0
 	golang.org/x/oauth2 v0.36.0
 	willnorris.com/go/microformats v1.2.0
 )
@@ -114,7 +116,6 @@ require (
 	github.com/montanaflynn/stats v0.9.0 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/skeema/knownhosts v1.3.2 // indirect
 	github.com/tdewolff/parse/v2 v2.8.12 // indirect
@@ -129,12 +130,16 @@ require (
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/yeqown/reedsolomon v1.0.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
-	golang.org/x/exp v0.0.0-20260718201538-764159d718ef // indirect
+	golang.org/x/exp v0.0.0-20260813180055-c1d0aacb2297 // indirect
 	golang.org/x/image v0.40.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/benpate/toot => /Users/sheriflawal/Dev/toot
+
+replace github.com/benpate/toot-echo => /Users/sheriflawal/Dev/toot-echo

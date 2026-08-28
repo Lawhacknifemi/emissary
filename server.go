@@ -31,6 +31,7 @@ import (
 	"github.com/EmissarySocial/emissary/server"
 	derpconsole "github.com/EmissarySocial/emissary/tools/derp-console"
 	"github.com/benpate/derp"
+	tootecho "github.com/benpate/toot-echo"
 	"github.com/benpate/digital-dome/dome4echo"
 	"github.com/benpate/form/widget"
 	"github.com/benpate/hannibal"
@@ -554,7 +555,7 @@ func makeStandardRoutes(factory *server.Factory, e *echo.Echo) {
 	e.POST("/oauth/revoke", handler.WithFactory(factory, handler.PostOAuthRevoke))
 
 	// Mastodon API
-	// toot.Register(e, handler.Mastodon(factory))
+	tootecho.Register(e, handler.Mastodon(factory))
 }
 
 /******************************************
