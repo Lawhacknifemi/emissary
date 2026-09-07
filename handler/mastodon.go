@@ -21,6 +21,7 @@ func Mastodon(serverFactory *server.Factory) toot.API[model.Authorization] {
 		GetAccount_Followers:           mastodon.GetAccount_Followers(serverFactory),
 		GetAccount_Following:           mastodon.GetAccount_Following(serverFactory),
 		GetAccount_FeaturedTags:        mastodon.GetAccount_FeaturedTags(serverFactory),
+		GetAccount_Endorsements:        mastodon.GetAccount_Endorsements(serverFactory),
 		PostAccount_Follow:             mastodon.PostAccount_Follow(serverFactory),
 		PostAccount_Unfollow:           mastodon.PostAccount_Unfollow(serverFactory),
 		PostAccount_Block:              mastodon.PostAccount_Block(serverFactory),
