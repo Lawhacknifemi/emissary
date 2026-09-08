@@ -5,6 +5,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// RuleSchema returns the rosetta schema that describes a Rule
 func RuleSchema() schema.Element {
 	return schema.Object{
 		Properties: schema.ElementMap{
@@ -16,13 +17,16 @@ func RuleSchema() schema.Element {
 			"followingLabel": schema.String{Format: "text", MaxLength: 64},
 			"type":           schema.String{Required: true, Enum: []string{RuleTypeDomain, RuleTypeActor, RuleTypeTag}},
 			"action":         schema.String{Required: true, Enum: []string{RuleActionBlock, RuleActionMute, RuleActionLabel}},
-			"label":          schema.String{Format: "text", MaxLength: 64},
-			"trigger":        schema.String{MaxLength: 256, Required: true},
-			"summary":        schema.String{Format: "text", MaxLength: 256},
-			"reasonCode":     schema.String{MaxLength: 64},
-			"isPublic":       schema.Boolean{},
-			"publishDate":    schema.Integer{BitSize: 64},
-			"expireDate":     schema.Integer{BitSize: 64},
+			// RULE: A LABEL rule with no label text matches documents but annotates nothing (LabelSet
+			// skips empty labels), so it LOOKS active while doing nothing. Refuse it at validation
+			// instead of saving it inert -- the same posture Save takes toward unresolvable Triggers.
+			"label":       schema.String{Format: "text", MaxLength: 64, RequiredIf: "action is LABEL"},
+			"trigger":     schema.String{MaxLength: 256, Required: true},
+			"summary":     schema.String{Format: "text", MaxLength: 256},
+			"reasonCode":  schema.String{MaxLength: 64},
+			"isPublic":    schema.Boolean{},
+			"publishDate": schema.Integer{BitSize: 64},
+			"expireDate":  schema.Integer{BitSize: 64},
 		},
 	}
 }
@@ -31,6 +35,7 @@ func RuleSchema() schema.Element {
  * Getter/Setter Interfaces
  ******************************************/
 
+// GetPointer returns a pointer to the named property. Implements schema.PointerGetter.
 func (rule *Rule) GetPointer(name string) (any, bool) {
 
 	switch name {
@@ -69,6 +74,7 @@ func (rule *Rule) GetPointer(name string) (any, bool) {
 	return nil, false
 }
 
+// GetStringOK returns the named property. Implements schema.StringGetter.
 func (rule *Rule) GetStringOK(name string) (string, bool) {
 
 	switch name {
@@ -87,6 +93,7 @@ func (rule *Rule) GetStringOK(name string) (string, bool) {
 	return "", false
 }
 
+// SetString writes the named property. Implements schema.StringSetter.
 func (rule *Rule) SetString(name string, value string) bool {
 
 	switch name {

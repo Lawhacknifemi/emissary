@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// PersonLink returns a PersonLink that points at this
 type PersonLink struct {
 	UserID       primitive.ObjectID `bson:"userId,omitempty"`       // Internal ID of the person (if they exist in this database)
 	Name         string             `bson:"name,omitempty"`         // Name of the person
@@ -20,6 +21,7 @@ type PersonLink struct {
 	IconURL      string             `bson:"iconUrl,omitempty"`      // URL of the person's avatar/icon image
 }
 
+// NewPersonLink returns a fully initialized, empty PersonLink
 func NewPersonLink() PersonLink {
 	return PersonLink{}
 }
@@ -128,6 +130,7 @@ func (person *PersonLink) UnmarshalMap(data mapof.Any) {
  * Mastodon API Methods
  ******************************************/
 
+// Toot returns this PersonLink as its Mastodon API equivalent
 func (person PersonLink) Toot() object.Account {
 
 	// Local accounts use the same short hex UserID as model.User.Toot(), so the

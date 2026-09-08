@@ -133,6 +133,7 @@ func mapDocumentToAccount(factory *service.Factory, session data.Session, docume
  * https://docs.joinmastodon.org/methods/accounts/
  *******************************************/
 
+// PostAccount implements the Mastodon "register an account" endpoint
 func PostAccount(serverFactory *server.Factory) func(model.Authorization, txn.PostAccount) (object.Token, error) {
 
 	const location = "handler.mastodon_PostAccount"
@@ -192,6 +193,7 @@ func PostAccount(serverFactory *server.Factory) func(model.Authorization, txn.Po
 	}
 }
 
+// GetAccount_VerifyCredentials implements the Mastodon "verify account credentials" endpoint
 func GetAccount_VerifyCredentials(serverFactory *server.Factory) func(model.Authorization, txn.GetAccount_VerifyCredentials) (object.Account, error) {
 
 	const location = "handler.mastodon_GetAccount_VerifyCredentials"
@@ -227,6 +229,7 @@ func GetAccount_VerifyCredentials(serverFactory *server.Factory) func(model.Auth
 	}
 }
 
+// PatchAccount_UpdateCredentials implements the Mastodon "update account credentials" endpoint
 func PatchAccount_UpdateCredentials(serverFactory *server.Factory) func(model.Authorization, txn.PatchAccount_UpdateCredentials) (object.Account, error) {
 
 	const location = "handler.mastodon_PatchAccount_UpdateCredentials"
@@ -271,6 +274,7 @@ func PatchAccount_UpdateCredentials(serverFactory *server.Factory) func(model.Au
 	}
 }
 
+// GetAccount implements the Mastodon "get account" endpoint
 func GetAccount(serverFactory *server.Factory) func(model.Authorization, txn.GetAccount) (object.Account, error) {
 
 	const location = "handler.mastodon_GetAccount"
@@ -318,6 +322,7 @@ func GetAccount(serverFactory *server.Factory) func(model.Authorization, txn.Get
 	}
 }
 
+// GetAccount_Statuses implements the Mastodon "get account statuses" endpoint
 func GetAccount_Statuses(serverFactory *server.Factory) func(model.Authorization, txn.GetAccount_Statuses) ([]object.Status, toot.PageInfo, error) {
 
 	const location = "handler.mastodon_GetAccount_Statuses"
@@ -372,6 +377,7 @@ func GetAccount_Statuses(serverFactory *server.Factory) func(model.Authorization
 	}
 }
 
+// GetAccount_Followers implements the Mastodon "get account followers" endpoint, and always returns an empty list
 func GetAccount_Followers(serverFactory *server.Factory) func(model.Authorization, txn.GetAccount_Followers) ([]object.Account, toot.PageInfo, error) {
 
 	return func(auth model.Authorization, t txn.GetAccount_Followers) ([]object.Account, toot.PageInfo, error) {
@@ -381,6 +387,7 @@ func GetAccount_Followers(serverFactory *server.Factory) func(model.Authorizatio
 	}
 }
 
+// GetAccount_Following implements the Mastodon "get account following" endpoint, and always returns an empty list
 func GetAccount_Following(serverFactory *server.Factory) func(model.Authorization, txn.GetAccount_Following) ([]object.Account, toot.PageInfo, error) {
 
 	return func(auth model.Authorization, t txn.GetAccount_Following) ([]object.Account, toot.PageInfo, error) {
@@ -400,6 +407,7 @@ func GetAccount_Endorsements(serverFactory *server.Factory) func(model.Authoriza
 	}
 }
 
+// GetAccount_FeaturedTags implements the Mastodon "get account featured tags" endpoint, and always returns an empty list
 func GetAccount_FeaturedTags(serverFactory *server.Factory) func(model.Authorization, txn.GetAccount_FeaturedTags) ([]object.Tag, toot.PageInfo, error) {
 
 	return func(auth model.Authorization, t txn.GetAccount_FeaturedTags) ([]object.Tag, toot.PageInfo, error) {
@@ -409,6 +417,7 @@ func GetAccount_FeaturedTags(serverFactory *server.Factory) func(model.Authoriza
 	}
 }
 
+// PostAccount_Follow implements the Mastodon "follow account" endpoint
 func PostAccount_Follow(serverFactory *server.Factory) func(model.Authorization, txn.PostAccount_Follow) (object.Relationship, error) {
 
 	const location = "handler.mastodon_PostAccount_Follow"
@@ -460,6 +469,7 @@ func PostAccount_Follow(serverFactory *server.Factory) func(model.Authorization,
 	}
 }
 
+// PostAccount_Unfollow implements the Mastodon "unfollow account" endpoint
 func PostAccount_Unfollow(serverFactory *server.Factory) func(model.Authorization, txn.PostAccount_Unfollow) (object.Relationship, error) {
 
 	const location = "handler.mastodon_PostAccount_Unfollow"
@@ -508,6 +518,7 @@ func PostAccount_Unfollow(serverFactory *server.Factory) func(model.Authorizatio
 	}
 }
 
+// PostAccount_Block implements the Mastodon "block account" endpoint
 func PostAccount_Block(serverFactory *server.Factory) func(model.Authorization, txn.PostAccount_Block) (object.Relationship, error) {
 
 	const location = "handler.mastodon_PostAccount_Block"
@@ -548,6 +559,7 @@ func PostAccount_Block(serverFactory *server.Factory) func(model.Authorization, 
 	}
 }
 
+// PostAccount_Unblock implements the Mastodon "unblock account" endpoint
 func PostAccount_Unblock(serverFactory *server.Factory) func(model.Authorization, txn.PostAccount_Unblock) (object.Relationship, error) {
 
 	const location = "handler.mastodon_PostAccount_Unblock"
@@ -588,6 +600,7 @@ func PostAccount_Unblock(serverFactory *server.Factory) func(model.Authorization
 	}
 }
 
+// PostAccount_Mute implements the Mastodon "mute account" endpoint
 func PostAccount_Mute(serverFactory *server.Factory) func(model.Authorization, txn.PostAccount_Mute) (object.Relationship, error) {
 
 	const location = "handler.mastodon_PostAccount_Mute"
@@ -626,6 +639,7 @@ func PostAccount_Mute(serverFactory *server.Factory) func(model.Authorization, t
 	}
 }
 
+// PostAccount_Unmute implements the Mastodon "unmute account" endpoint
 func PostAccount_Unmute(serverFactory *server.Factory) func(model.Authorization, txn.PostAccount_Unmute) (object.Relationship, error) {
 
 	const location = "handler.mastodon_PostAccount_Unmute"
@@ -666,6 +680,7 @@ func PostAccount_Unmute(serverFactory *server.Factory) func(model.Authorization,
 	}
 }
 
+// PostAccount_Pin is the Mastodon "pin account" endpoint, which Emissary does not implement
 func PostAccount_Pin(serverFactory *server.Factory) func(model.Authorization, txn.PostAccount_Pin) (object.Relationship, error) {
 
 	const location = "handler.mastodon_PostAccount_Pin"
@@ -675,6 +690,7 @@ func PostAccount_Pin(serverFactory *server.Factory) func(model.Authorization, tx
 	}
 }
 
+// PostAccount_Unpin is the Mastodon "unpin account" endpoint, which Emissary does not implement
 func PostAccount_Unpin(serverFactory *server.Factory) func(model.Authorization, txn.PostAccount_Unpin) (object.Relationship, error) {
 
 	const location = "handler.mastodon_PostAccount_Unpin"
@@ -684,6 +700,7 @@ func PostAccount_Unpin(serverFactory *server.Factory) func(model.Authorization, 
 	}
 }
 
+// PostAccount_Note is the Mastodon "set private note" endpoint, which Emissary does not implement
 func PostAccount_Note(serverFactory *server.Factory) func(model.Authorization, txn.PostAccount_Note) (object.Relationship, error) {
 
 	const location = "handler.mastodon_PostAccount_Note"
@@ -693,6 +710,7 @@ func PostAccount_Note(serverFactory *server.Factory) func(model.Authorization, t
 	}
 }
 
+// GetAccount_Relationships is the Mastodon "get relationships" endpoint, which Emissary does not implement
 func GetAccount_Relationships(serverFactory *server.Factory) func(model.Authorization, txn.GetAccount_Relationships) ([]object.Relationship, error) {
 
 	const location = "handler.mastodon_GetAccount_Relationships"
@@ -702,6 +720,7 @@ func GetAccount_Relationships(serverFactory *server.Factory) func(model.Authoriz
 	}
 }
 
+// GetAccount_FamiliarFollowers is the Mastodon "get familiar followers" endpoint, which Emissary does not implement
 func GetAccount_FamiliarFollowers(serverFactory *server.Factory) func(model.Authorization, txn.GetAccount_FamiliarFollowers) (object.FamiliarFollowers, error) {
 
 	return func(auth model.Authorization, t txn.GetAccount_FamiliarFollowers) (object.FamiliarFollowers, error) {

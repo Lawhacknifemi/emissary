@@ -2,17 +2,17 @@ package service
 
 import (
 	"crypto/sha256"
-	"time"
 
 	"github.com/EmissarySocial/emissary/tools/postcommit"
 	"github.com/benpate/data"
 	"github.com/benpate/derp"
-	"github.com/benpate/hannibal"
+	"github.com/benpate/hannibal/datetime"
 	"github.com/benpate/hannibal/sender"
 	"github.com/benpate/hannibal/vocab"
 	"github.com/benpate/rosetta/mapof"
 )
 
+// sendGuestCode_ActivityPub delivers a guest sign-in code to an Identity as an ActivityPub direct message
 func (service *Identity) sendGuestCode_ActivityPub(session data.Session, identifier string, code string) error {
 
 	const location = "service.Identity.sendGuestCode_ActivityPub"
@@ -32,7 +32,7 @@ func (service *Identity) sendGuestCode_ActivityPub(session data.Session, identif
 	objectID := service.host + "/@guest/signin/" + string(idHash[:])
 
 	url := service.host + "/@guest/signin/" + code
-	publishedDate := hannibal.TimeFormat(time.Now())
+	publishedDate := datetime.Now()
 
 	content := "Hello " + identifier +
 		"<br><br>" +

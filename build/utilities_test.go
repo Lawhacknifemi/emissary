@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestParseForm verifies that a urlencoded request body parses into its form values
 func TestParseForm(t *testing.T) {
 
 	body := strings.NewReader(`first=1&second=2&third=3&third=4`)
@@ -28,6 +29,7 @@ func TestParseForm(t *testing.T) {
 	require.Equal(t, []string{"1"}, values["first"])
 }
 
+// TestParseMultipartForm verifies that a multipart request body parses into its form values
 func TestParseMultipartForm(t *testing.T) {
 
 	request, err := getTestRequest()
@@ -42,6 +44,7 @@ func TestParseMultipartForm(t *testing.T) {
 	require.Equal(t, []string{"http://localhost/6692c69bfe80a9aacf125b0d/attachments/6723b7b74aa88ca07dc8614e"}, values["iconUrl"])
 }
 
+// TestIsNewOrEmpty verifies which token values count as "new or empty"
 func TestIsNewOrEmpty(t *testing.T) {
 	require.True(t, isNewOrEmpty(""))
 	require.True(t, isNewOrEmpty("new"))
@@ -220,6 +223,7 @@ func TestOEmbedURL(t *testing.T) {
 	}
 }
 
+// TestInlineErrorMessage verifies that the root message of a wrapped error is the one shown to the User
 func TestInlineErrorMessage(t *testing.T) {
 
 	// A validation error buried under pipeline wrappers surfaces its ROOT message --
@@ -258,6 +262,7 @@ func TestInlineErrorMessage(t *testing.T) {
 	}
 }
 
+// TestWrapInlineError verifies the status, htmx headers, and message written for an inline error
 func TestWrapInlineError(t *testing.T) {
 
 	// The full writer path: 200 status, htmx retargeting headers, and the root
@@ -271,10 +276,35 @@ func TestWrapInlineError(t *testing.T) {
 	require.Equal(t, "#htmx-response-message", recorder.Header().Get("HX-Retarget"))
 	require.Equal(t, `<span class="text-red">Address not found</span>`, recorder.Body.String())
 
+	// The fragment must be labeled HTML: Go's sniffer reads `<span` as text/plain, which
+	// renders as raw markup on any direct (non-htmx) render path -- BUG-109's symptom.
+	require.Equal(t, "text/html; charset=utf-8", recorder.Header().Get("Content-Type"))
+
 	// A message echoing hostile input is escaped, not swapped into the page as markup
 	recorder = httptest.NewRecorder()
 	err = derp.Validation(`<script>alert(1)</script> is not a valid address`)
 
 	require.Nil(t, WrapInlineError(recorder, err))
 	require.Equal(t, `<span class="text-red">&lt;script&gt;alert(1)&lt;/script&gt; is not a valid address</span>`, recorder.Body.String())
+}
+
+// TestWrapInlineSuccess verifies the status, htmx headers, and markup written for an inline success
+func TestWrapInlineSuccess(t *testing.T) {
+
+	// The full writer path: 200 status, htmx retargeting headers, explicit HTML
+	// Content-Type, and the message inside the green span.
+	recorder := httptest.NewRecorder()
+
+	require.Nil(t, WrapInlineSuccess(recorder, "Record Updated"))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "innerHTML", recorder.Header().Get("HX-Reswap"))
+	require.Equal(t, "#htmx-response-message", recorder.Header().Get("HX-Retarget"))
+	require.Equal(t, "text/html; charset=utf-8", recorder.Header().Get("Content-Type"))
+	require.Equal(t, `<span class="text-green">Record Updated</span>`, recorder.Body.String())
+
+	// A message echoing hostile input is escaped, not swapped into the page as markup
+	recorder = httptest.NewRecorder()
+
+	require.Nil(t, WrapInlineSuccess(recorder, `<img src=x onerror=alert(1)>`))
+	require.Equal(t, `<span class="text-green">&lt;img src=x onerror=alert(1)&gt;</span>`, recorder.Body.String())
 }

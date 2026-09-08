@@ -19,8 +19,8 @@
 				<a href="/@me/settings/following" hx-boost="true">Following</a>
 				<a href="/@me/settings/followers" hx-boost="true">Followers</a>
 				<a href="/@me/settings/circles" hx-boost="true">Circles</a>
-				<a href="/@me/settings/notifications" class="selected" hx-boost="true">Notifications</a>
 				<a href="/@me/settings/rules" hx-boost="true">Rules</a>
+				<a href="/@me/settings/notifications" class="selected" hx-boost="true">Notifications</a>
 			</div>
 			<div class="right">
 				<a href="https://emissary.dev/notifications" target="_blank" class="link">
@@ -35,13 +35,7 @@
 			<div class="text-lg bold margin-bottom">Server-Side Options</div>
 			<div class="margin-bottom">Choose the message types that will trigger a notifications. This decision is saved on your server, and applies to all real-time alerts and "unread" indicators in your inbox.</div>
 
-			<div
-				hx-get="/@me/settings/notifications-form"
-				hx-trigger="load"
-				hx-target="this"
-				hx-swap="outerHTML"
-				hx-push-url="false">
-			</div>
+			{{- .View "notifications-form" -}}
 
 		</div>
 	</div>

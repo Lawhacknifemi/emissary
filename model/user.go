@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/EmissarySocial/emissary/tools/id"
+	"github.com/EmissarySocial/emissary/tools/markdown"
 	"github.com/EmissarySocial/emissary/tools/replace"
 	"github.com/benpate/data/journal"
 	"github.com/benpate/delta"
@@ -100,6 +101,7 @@ func (user User) NotificationEnabled(channels []string) bool {
  * Conversion Methods
  ******************************************/
 
+// PersonLink returns a PersonLink that points at this User
 func (user User) PersonLink() PersonLink {
 	return PersonLink{
 		UserID:       user.UserID,
@@ -236,12 +238,13 @@ func (user *User) RolesToPrivilegeIDs(roleIDs ...string) Permissions {
 }
 
 // SummaryHTML renders the user's StatusMessage from Markdown to HTML, and linkifies any #hashtags
-// using the tag URL denormalized from the outbox Template.  Goldmark (without unsafe HTML) blanks
-// dangerous link targets and drops raw HTML, so the result is safe to render on our own origin.
-// The hashtag links are absolute, because this HTML is also published as the ActivityPub summary.
+// using the tag URL denormalized from the outbox Template.  The shared converter sanitizes its
+// output with bluemonday, so raw HTML in a bio is filtered down to safe markup (not escaped) and
+// the result is safe to render on our own origin.  The hashtag links are absolute, because this
+// HTML is also published as the ActivityPub summary.
 func (user User) SummaryHTML() string {
 
-	result := markdownToHTML(user.StatusMessage)
+	result := markdown.ToHTML(user.StatusMessage)
 
 	// RULE: Only linkify when the outbox Template defines a tag URL
 	if tagURL := HashtagURLPrefix(uri.Host(user.ProfileURL), user.TagURL); tagURL != "" {
@@ -281,7 +284,9 @@ func (user User) GetJSONLD() mapof.Any {
 		vocab.PropertyOutbox:            user.ActivityPubOutboxURL(),
 		vocab.PropertyFollowing:         user.ActivityPubFollowingURL(),
 		vocab.PropertyFollowers:         user.ActivityPubFollowersURL(),
-		vocab.PropertyLiked:             user.ActivityPubLikedURL(),
+
+		// Removed "Liked" for now.
+		// vocab.PropertyLiked:             user.ActivityPubLikedURL(),
 
 		// Always allow general direct messages, but MLS messages require additional approval.
 		"emissary:messages": user.ActivityPubInboxURL_DirectMessages(),

@@ -3,12 +3,10 @@ package handler
 import (
 	stdhtml "html"
 	"net/http"
-	"net/url"
 
 	"github.com/EmissarySocial/emissary/model"
 	"github.com/EmissarySocial/emissary/service"
 	"github.com/benpate/hannibal/streams"
-	"github.com/benpate/rosetta/mapof"
 	"github.com/benpate/steranko"
 	"github.com/benpate/uri"
 	"github.com/golang-jwt/jwt/v5"
@@ -30,6 +28,11 @@ func ActorUsername(actor streams.Document) string {
 
 	// Otherwise, just punt and use the ID
 	return actor.ID()
+}
+
+// isHTMXRequest returns TRUE if this request was made by htmx (an HX-Request header is present)
+func isHTMXRequest(ctx echo.Context) bool {
+	return ctx.Request().Header.Get("HX-Request") != ""
 }
 
 // getActionID returns the :action token from the Request (or a default)
@@ -62,6 +65,7 @@ func getAuthorization(ctx echo.Context) model.Authorization {
 	return model.NewAuthorization()
 }
 
+// isUserVisible returns TRUE if the caller is allowed to see the provided User's profile
 func isUserVisible(context *steranko.Context, user *model.User) bool {
 
 	// If the User is public, then their profile is always visible
@@ -98,19 +102,6 @@ func isOwner(claims jwt.Claims, err error) bool {
 	return false
 }
 
-// cleanQueryParams returns a "clean" version of a url.Values structure.
-// It truncates all slices into a single string.
-func cleanQueryParams(values url.Values) mapof.Any {
-	result := make(mapof.Any, len(values))
-	for key, value := range values {
-		if len(value) > 0 {
-			result[key] = value[0]
-		}
-	}
-
-	return result
-}
-
 // firstOf is a quickie generic helper that returns the first
 // non-zero value from a list of comparable values.
 func firstOf[T comparable](values ...T) T {
@@ -128,6 +119,7 @@ func firstOf[T comparable](values ...T) T {
 	return empty
 }
 
+// inlineError swaps a red error message into the page's htmx response slot
 func inlineError(ctx echo.Context, message string) error {
 
 	header := ctx.Response().Header()
@@ -139,6 +131,7 @@ func inlineError(ctx echo.Context, message string) error {
 	return ctx.String(http.StatusOK, `<span class="text-red">`+stdhtml.EscapeString(message)+`</span>`)
 }
 
+// closeModalAndRefreshPage tells htmx to dismiss the open modal and reload the underlying page
 func closeModalAndRefreshPage(ctx echo.Context) error {
 	header := ctx.Response().Header()
 	header.Set("Hx-Push-Url", "false")

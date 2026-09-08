@@ -11,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// PostMasquerade lets a domain owner sign in as one of their Users
 func PostMasquerade(ctx *steranko.Context, factory *service.Factory, session data.Session) error {
 
 	const location = "handler.PostMasquerade"
@@ -41,8 +42,10 @@ func PostMasquerade(ctx *steranko.Context, factory *service.Factory, session dat
 		return derp.Wrap(err, location, "Creating JWT claims for masquerade")
 	}
 
-	// Create a masquerade certificate for the requested User
-	if err := factory.Steranko(session).SetCookie(ctx, claims); err != nil {
+	// Create a masquerade certificate for the requested User. PushCookie stacks the
+	// administrator's current session into the "-backup" slot, so signing out of the
+	// masquerade pops back to the administrator (see steranko.SignOut).
+	if err := factory.Steranko(session).PushCookie(ctx, claims); err != nil {
 		return derp.Wrap(err, location, "Creating JWT certificate")
 	}
 

@@ -15,6 +15,7 @@ type StepSave struct {
 	OnError []step.Step
 }
 
+// Get renders this step during a GET request. Implements the Step interface.
 func (step StepSave) Get(builder Builder, buffer io.Writer) PipelineBehavior {
 
 	if (step.Method == "get") || (step.Method == "both") {
@@ -38,6 +39,11 @@ func (step StepSave) Post(builder Builder, buffer io.Writer) PipelineBehavior {
 func (step StepSave) do(builder Builder, buffer io.Writer, actionMethod ActionMethod) PipelineBehavior {
 
 	const location = "build.StepSave.Post"
+
+	// Let each Widget derive its stored values before the object is written
+	if err := executeWidgetSaveSteps(builder, buffer, actionMethod); err != nil {
+		return Halt().WithError(derp.Wrap(err, location, "Executing widget save pipelines"))
+	}
 
 	modelService := builder.service()
 	object := builder.object()

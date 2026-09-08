@@ -12,6 +12,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// GetBlueskyDID serves the did.json document that proves this domain owns its Bluesky handle
 func GetBlueskyDID(serverFactory *server.Factory) echo.HandlerFunc {
 
 	const location = "handler.GetBlueskyDID"
@@ -68,7 +69,7 @@ func GetBlueskyDID(serverFactory *server.Factory) echo.HandlerFunc {
 
 		// RULE: Requre that the user has opted in to Bluesky bridging
 		if user.IsBridgeBluesky.IsFalse() {
-			return derp.Wrap(err, location, "User has not opted in to Bluesky bridging", username)
+			return derp.NotFound(location, "User has not opted in to Bluesky bridging", username)
 		}
 
 		// Generate the correct Bridgy URL for this user, and forward the request there

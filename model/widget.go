@@ -4,22 +4,26 @@ import (
 	"html/template"
 	"io/fs"
 
+	"github.com/EmissarySocial/emissary/model/step"
 	"github.com/benpate/form"
 	"github.com/benpate/rosetta/mapof"
 	"github.com/benpate/rosetta/schema"
 )
 
+// Widget is a reusable, configurable component that can be placed on a Stream
 type Widget struct {
 	WidgetID     string               `bson:"widgetId"`     // Unique identifier for this widget
 	Label        string               `bson:"label"`        // Human-readable label for this widget
 	Description  string               `bson:"description"`  // Human-readable description for this widget
 	Schema       schema.Schema        `bson:"schema"`       // Custom data schema to use for this widget
 	Form         form.Element         `bson:"form"`         // Property/Settings form for this widget
+	SaveSteps    step.Pipeline        `bson:"saveSteps"`    // Pipeline executed against this Widget's data whenever the containing Stream is saved
 	HTMLTemplate *template.Template   `bson:"htmlTemplate"` // HTML template for this widget
 	Bundles      mapof.Object[Bundle] `bson:"bundles"`      // List of bundles that this widget uses
 	Resources    fs.FS                `json:"-" bson:"-"`   // File system containing the template resources
 }
 
+// NewWidget returns a fully initialized Widget with the provided ID and template helpers
 func NewWidget(widgetID string, funcMap template.FuncMap) Widget {
 	return Widget{
 		WidgetID:     widgetID,
@@ -28,7 +32,12 @@ func NewWidget(widgetID string, funcMap template.FuncMap) Widget {
 	}
 }
 
+// IsEditable returns TRUE if this Widget defines a settings form that a User can fill in
 func (widget Widget) IsEditable() bool {
-	// TODO: LOW: These should rules be IsEmpty() accessors in the schema and form packages
-	return (widget.Schema.Element != nil) && (len(widget.Form.Children) > 0)
+
+	if widget.Schema.Element == nil {
+		return false
+	}
+
+	return len(widget.Form.Children) > 0
 }

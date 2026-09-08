@@ -19,12 +19,13 @@ type StepSetData struct {
 	Defaults mapof.Any                     // values to set into the object IFF they are currently empty.
 }
 
+// Get renders this step during a GET request. Implements the Step interface.
 func (step StepSetData) Get(builder Builder, buffer io.Writer) PipelineBehavior {
 
 	const location = "build.StepSetData.Get"
 
 	if err := step.setURLPaths(builder); err != nil {
-		return Halt().WithError(derp.Wrap(err, "build.StepSetData.Get", "Setting data from URL"))
+		return Halt().WithError(derp.Wrap(err, location, "Setting data from URL"))
 	}
 
 	object := builder.object()
@@ -58,7 +59,7 @@ func (step StepSetData) Post(builder Builder, _ io.Writer) PipelineBehavior {
 	const location = "build.StepSetData.Post"
 
 	if err := step.setURLPaths(builder); err != nil {
-		return Halt().WithError(derp.Wrap(err, "build.StepSetData.Get", "Setting data from URL"))
+		return Halt().WithError(derp.Wrap(err, location, "Setting data from URL"))
 	}
 
 	object := builder.object()
@@ -107,6 +108,7 @@ func (step StepSetData) Post(builder Builder, _ io.Writer) PipelineBehavior {
 	return nil
 }
 
+// setURLPaths copies the configured query-string values onto the object being built
 func (step StepSetData) setURLPaths(builder Builder) error {
 
 	if len(step.FromURL) > 0 {

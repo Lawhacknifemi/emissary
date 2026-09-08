@@ -8,7 +8,7 @@ import (
 	"github.com/EmissarySocial/emissary/model"
 	"github.com/benpate/data"
 	"github.com/benpate/derp"
-	"github.com/benpate/hannibal"
+	"github.com/benpate/hannibal/datetime"
 	"github.com/benpate/hannibal/streams"
 	"github.com/benpate/hannibal/vocab"
 	"github.com/benpate/rosetta/mapof"
@@ -76,11 +76,13 @@ func (service *Stream) Publish(session data.Session, user *model.User, stream *m
 	return nil
 }
 
+// publish_outbox sends a Create (or Update) activity for the Stream to its author's Outbox
 func (service *Stream) publish_outbox(session data.Session, user *model.User, stream *model.Stream, wasPublished bool) error {
 
 	const location = "service.Stream.publish_outbox"
 
-	// Create the Activity to send to the User's Outbox
+	// Create the Activity to send to the User's Outbox.  @mentions were already extracted and
+	// resolved by Stream.Save (CalculateMentions), so the object arrives fully tagged.
 	object := service.JSONLD(session, stream)
 
 	// RULE: A reply must reach the AUTHOR of the post it replies to, so they receive it (and a Reply
@@ -89,8 +91,7 @@ func (service *Stream) publish_outbox(session data.Session, user *model.User, st
 	// wrapper; Outbox.Publish then delivers to every addressee on top of the follower fan-out. This
 	// mirrors how an Announce cc's the reacted-to author (see service.Response.reactionAudience).
 	if authorURL := service.inReplyToAuthorURL(stream); authorURL != "" {
-		cc, _ := object[vocab.PropertyCC].([]string)
-		if !slices.Contains(cc, authorURL) {
+		if cc, _ := object[vocab.PropertyCC].([]string); !slices.Contains(cc, authorURL) {
 			object[vocab.PropertyCC] = append(cc, authorURL)
 		}
 	}
@@ -118,7 +119,7 @@ func (service *Stream) publish_outbox(session data.Session, user *model.User, st
 		vocab.PropertyType:      activityType,
 		vocab.PropertyActor:     user.ActivityPubURL(),
 		vocab.PropertyObject:    object,
-		vocab.PropertyPublished: hannibal.TimeFormat(time.Now()),
+		vocab.PropertyPublished: datetime.Now(),
 	}
 
 	if to, ok := object[vocab.PropertyTo]; ok {

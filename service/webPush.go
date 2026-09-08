@@ -22,6 +22,8 @@ const webPushErrorBodyMaxLength = 1024
 
 // Domain.Data keys under which the per-domain VAPID keypair is stored (generated lazily).
 const domainDataVAPIDPublicKey = "vapidPublicKey"
+
+// domainDataVAPIDPrivateKey is the Domain.Data key that this Domain's VAPID private key is stored under
 const domainDataVAPIDPrivateKey = "vapidPrivateKey"
 
 // webPushTTL is the number of seconds a push message may be queued by the push service.
@@ -88,10 +90,7 @@ func (service *WebPush) vapidKeys(session data.Session) (publicKey string, priva
 
 	domain := service.domainService.Get()
 
-	public := domain.Data.GetString(domainDataVAPIDPublicKey)
-	private := domain.Data.GetString(domainDataVAPIDPrivateKey)
-
-	if public != "" && private != "" {
+	if public, private := domain.Data.GetString(domainDataVAPIDPublicKey), domain.Data.GetString(domainDataVAPIDPrivateKey); public != "" && private != "" {
 		return public, private, nil
 	}
 

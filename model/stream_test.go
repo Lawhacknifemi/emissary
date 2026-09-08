@@ -14,6 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// TestStreamSchema confirms that every Stream field round-trips through its JSON-Schema
 func TestStreamSchema(t *testing.T) {
 
 	s := schema.New(StreamSchema())
@@ -57,9 +58,18 @@ func TestStreamSchema(t *testing.T) {
 		{"iconUrl", "https://DOC.ICONURL.COM", nil},
 		{"hashtags.0", "first-tag", nil},
 		{"hashtags.1", "second-tag", nil},
+
+		// tags is an array of objects, so each Tag property is addressed individually. The list
+		// grows to fit, which is what lets a caller write tags.1.* before tags.1 exists.
+		{"tags.0.type", "Hashtag", nil},
+		{"tags.0.name", "first-tag", nil},
+		{"tags.1.type", "Mention", nil},
+		{"tags.1.name", "bob@server.social", nil},
+		{"tags.1.href", "https://server.social/@bob", nil},
 		// note: "isPublished" is a read-only virtual field (computed from publishDate/unpublishDate),
-		// "syndication" is a delta.Slice not settable by element path, and "widgets" is a nested
-		// object — none round-trip through this table helper, so they are intentionally omitted.
+		// "syndication" is a delta.Slice written as a WHOLE array rather than by element path
+		// (see TestStreamSchema_Syndication), and "widgets" is a nested object — none round-trip
+		// through this table helper, so they are intentionally omitted.
 		{"attributedTo.name", "DOC-AUTHOR-NAME", nil},
 		{"attributedTo.profileUrl", "https://example/author", nil},
 
@@ -122,6 +132,7 @@ func TestStreamSchema_Aliases(t *testing.T) {
 	}
 }
 
+// TestPermissionSchema confirms that role-to-ID permission maps round-trip through their schema
 func TestPermissionSchema(t *testing.T) {
 
 	m := mapof.NewObject[sliceof.String]()
@@ -137,11 +148,11 @@ func TestPermissionSchema(t *testing.T) {
 	tableTest_Schema(t, &s, &m, table)
 }
 
+// TestStream_IsVisibleTo confirms that DefaultAllow decides visibility for a set of permissions
 func TestStream_IsVisibleTo(t *testing.T) {
 
 	// A private Group and a signed-in User, used to build viewer permissions below.
 	privateGroup := primitive.NewObjectID()
-	otherGroup := primitive.NewObjectID()
 	userID := primitive.NewObjectID()
 
 	// anonymousViewer sees the world with no signature (the /pub/children default).
@@ -170,6 +181,7 @@ func TestStream_IsVisibleTo(t *testing.T) {
 
 	// RULE: A Stream restricted to a Group the viewer does NOT belong to is hidden.
 	{
+		otherGroup := primitive.NewObjectID()
 		stream := Stream{DefaultAllow: Permissions{otherGroup}}
 		require.False(t, stream.IsVisibleTo(memberViewer), "stream restricted to a non-member group must be hidden")
 	}
@@ -188,6 +200,7 @@ func TestStream_IsVisibleTo(t *testing.T) {
 	}
 }
 
+// TestStream_JSON confirms that a Stream survives a round-trip through JSON
 func TestStream_JSON(t *testing.T) {
 
 	test := func(stream Stream, expected ...string) {
@@ -207,4 +220,39 @@ func TestStream_JSON(t *testing.T) {
 	test(Stream{
 		EndDate: datetime.DateTime{Time: time.Date(2009, 11, 17, 20, 34, 58, 651387237, time.UTC)},
 	}, `"EndDate":"2009-11-17T20:34:58.651387237Z"`)
+}
+
+// TestStreamSchema_Syndication pins how Stream.Syndication is written.  It is a delta.Slice,
+// which the schema package reaches through ValueSetter rather than the per-index setters
+// that back the other slice fields, so it is written as a whole array and is deliberately
+// absent from the element-path table in TestStreamSchema.
+func TestStreamSchema_Syndication(t *testing.T) {
+
+	s := schema.New(StreamSchema())
+
+	{ // A whole array is written through ValueSetter -- the shape a multiselect posts
+		stream := NewStream()
+		posted := sliceof.String{"bandwagon", "spotify"}
+
+		require.NoError(t, s.Set(&stream, "syndication", &posted))
+		require.Equal(t, []string{"bandwagon", "spotify"}, stream.Syndication.Values)
+		require.Equal(t, []string{"bandwagon", "spotify"}, stream.Syndication.Added)
+		require.Empty(t, stream.Syndication.Deleted)
+	}
+
+	{ // RULE: The schema's "token" format is enforced, and a rejected value never lands
+		stream := NewStream()
+		posted := sliceof.String{"not a token"}
+
+		require.Error(t, s.Set(&stream, "syndication", &posted))
+		require.Empty(t, stream.Syndication.Values)
+	}
+
+	// A single element is NOT addressable by path: delta.Slice implements neither
+	// StringSetter nor PointerGetter, so there is nothing for the schema to descend into.
+	// Pinned here so that the omission above stays a documented limit rather than a mystery.
+	{
+		stream := NewStream()
+		require.Error(t, s.Set(&stream, "syndication.0", "bandwagon"))
+	}
 }

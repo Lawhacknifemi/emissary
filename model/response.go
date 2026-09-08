@@ -1,10 +1,8 @@
 package model
 
 import (
-	"time"
-
 	"github.com/benpate/data/journal"
-	"github.com/benpate/hannibal"
+	"github.com/benpate/hannibal/datetime"
 	"github.com/benpate/hannibal/vocab"
 	"github.com/benpate/rosetta/mapof"
 	"github.com/benpate/toot/object"
@@ -88,8 +86,14 @@ func (response Response) ID() string {
 	return response.ResponseID.Hex()
 }
 
+// Fields returns the database columns that must be loaded to populate a Response
+// It is part of the FieldLister interface
 func (response Response) Fields() []string {
-	return []string{"responseId", "url", "object", "type", "content", "createDate"}
+
+	// NOTE: "actor" and "userId" are not decoration. ActivityPubURL/Toot build their
+	// URLs from Actor, and the AccessLister methods key off UserID -- so omitting either
+	// one yields a Response that looks valid but computes wrong answers.
+	return []string{"_id", "userId", "actor", "object", "type", "summary", "content", "createDate"}
 }
 
 /******************************************
@@ -100,12 +104,17 @@ func (response Response) Fields() []string {
 func (response Response) GetJSONLD() mapof.Any {
 
 	result := mapof.Any{
-		vocab.AtContext:         vocab.ContextTypeActivityStreams,
-		vocab.PropertyID:        response.ActivityPubURL(),
-		vocab.PropertyType:      response.Type,
-		vocab.PropertyActor:     response.Actor,
-		vocab.PropertyObject:    response.Object,
-		vocab.PropertyPublished: response.ActivityPubCreateDate(),
+		vocab.AtContext:      vocab.ContextTypeActivityStreams,
+		vocab.PropertyID:     response.ActivityPubURL(),
+		vocab.PropertyType:   response.Type,
+		vocab.PropertyActor:  response.Actor,
+		vocab.PropertyObject: response.Object,
+	}
+
+	// An unsaved Response has no CreateDate. Omit `published` rather than
+	// claiming the activity was published at the Unix epoch.
+	if published := response.ActivityPubCreateDate(); published != "" {
+		result[vocab.PropertyPublished] = published
 	}
 
 	if response.Summary != "" {
@@ -119,6 +128,7 @@ func (response Response) GetJSONLD() mapof.Any {
 	return result
 }
 
+// ActivityPubURL returns the URL that identifies this Response to ActivityPub
 func (response Response) ActivityPubURL() string {
 
 	switch response.Type {
@@ -143,11 +153,11 @@ func (response Response) IsEqual(other Response) bool {
 		(response.Content == other.Content)
 }
 
+// ActivityPubCreateDate returns the CreateDate as an AS2 date-time, or an
+// empty string if this Response has not been saved yet. CreateDate is stored
+// in milliseconds, which FromUnixMilli expects directly.
 func (response Response) ActivityPubCreateDate() string {
-	// CreateDate is stored in milliseconds (journal uses UnixMilli), so convert to seconds before
-	// building a time.Time. Passing the raw millis to time.Unix(_, 0) yielded a 5-digit year that
-	// then failed to re-parse (RFC1123 wants a 4-digit year), leaving `published` blank downstream.
-	return hannibal.TimeFormat(time.Unix(response.CreateDateSeconds(), 0))
+	return datetime.FromUnixMilli(response.CreateDate)
 }
 
 // CreateDateSeconds returns the CreateDate in Unix Epoch seconds (instead of milliseconds)
@@ -203,6 +213,7 @@ func (response *Response) RolesToPrivilegeIDs(roleIDs ...string) Permissions {
  * Mastodon API
  ******************************************/
 
+// Toot returns this Response as a Mastodon API Status object
 func (response Response) Toot() object.Status {
 
 	return object.Status{

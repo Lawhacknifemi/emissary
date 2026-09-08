@@ -8,14 +8,15 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// DomainSchema returns the rosetta schema that describes a Domain
 func DomainSchema() schema.Element {
 	return schema.Object{
 		Properties: schema.ElementMap{
 			"domainId":             schema.String{Format: "objectId"},
 			"iconId":               schema.String{Format: "objectId"},
 			"imageId":              schema.String{Format: "objectId"},
-			"iconUrl":              schema.String{Format: "url"}, // virtual field
-			"imageUrl":             schema.String{Format: "url"}, // virtual field
+			"iconUrl":              schema.String{}, // virtual field
+			"imageUrl":             schema.String{}, // virtual field
 			"themeId":              schema.String{MaxLength: 128},
 			"registrationId":       schema.String{MaxLength: 128},
 			"inboxId":              schema.String{MaxLength: 128},
@@ -24,6 +25,7 @@ func DomainSchema() schema.Element {
 			"description":          schema.String{MaxLength: 1024},
 			"forward":              schema.String{Format: "url", Required: false},
 			"data":                 schema.Object{Wildcard: schema.String{MaxLength: 4096}},
+			"themeData":            schema.Object{Wildcard: schema.String{MaxLength: 1048576}},
 			"colorMode":            schema.String{Enum: []string{DomainColorModeAuto, DomainColorModeLight, DomainColorModeDark}},
 			"mlsMode":              schema.String{Enum: []string{DomainMLSModeAll, DomainMLSModeGroups, DomainMLSModeNone}},
 			"defaultAnonymous":     schema.String{MaxLength: 128},
@@ -32,6 +34,8 @@ func DomainSchema() schema.Element {
 			"mlsGroupIds":          schema.String{MaxLength: 2048},
 			"syndication":          schema.Array{Items: form.LookupCodeSchema()},
 			"registrationData":     schema.Object{Wildcard: schema.String{MaxLength: 8192}},
+			"startupTasks":         schema.Array{Items: schema.String{MaxLength: 32}, MaxLength: 16},
+			"stateId":              schema.String{Enum: []string{DomainStateStartup, DomainStateLive}},
 		},
 	}
 }
@@ -40,6 +44,7 @@ func DomainSchema() schema.Element {
  * Getter/Setter Interfaces
  ********************************/
 
+// GetPointer returns a pointer to the named property. Implements schema.PointerGetter.
 func (domain *Domain) GetPointer(name string) (any, bool) {
 
 	switch name {
@@ -77,6 +82,9 @@ func (domain *Domain) GetPointer(name string) (any, bool) {
 	case "data":
 		return &domain.Data, true
 
+	case "themeData":
+		return &domain.ThemeData, true
+
 	case "syndication":
 		return &domain.Syndication, true
 
@@ -88,11 +96,18 @@ func (domain *Domain) GetPointer(name string) (any, bool) {
 
 	case "defaultOwner":
 		return &domain.DefaultOwner, true
+
+	case "startupTasks":
+		return &domain.StartupTasks, true
+
+	case "stateId":
+		return &domain.StateID, true
 	}
 
 	return nil, false
 }
 
+// GetStringOK returns the named property. Implements schema.StringGetter.
 func (domain Domain) GetStringOK(name string) (string, bool) {
 
 	switch name {
@@ -123,6 +138,7 @@ func (domain Domain) GetStringOK(name string) (string, bool) {
  * Setter Interfaces
  *********************************/
 
+// SetString writes the named property. Implements schema.StringSetter.
 func (domain *Domain) SetString(name string, value string) bool {
 
 	switch name {

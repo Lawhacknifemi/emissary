@@ -1,15 +1,10 @@
 package model
 
 import (
-	"bytes"
 	"strings"
 
 	"github.com/EmissarySocial/emissary/tools/id"
-	"github.com/benpate/derp"
-	"github.com/benpate/rosetta/convert"
 	"github.com/benpate/rosetta/mapof"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/extension"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -47,6 +42,7 @@ func ToToken(value string) string {
 	return result.String()
 }
 
+// flatten merges every id.Slice in the provided map into a single slice
 func flatten(original mapof.Object[id.Slice]) id.Slice {
 
 	length := len(original)
@@ -64,11 +60,13 @@ func flatten(original mapof.Object[id.Slice]) id.Slice {
 	return result
 }
 
+// objectID parses a hex string into an ObjectID, returning NilObjectID if it is malformed
 func objectID(value string) primitive.ObjectID {
 	result, _ := primitive.ObjectIDFromHex(value)
 	return result
 }
 
+// defaultRolesToGroupIDs converts a list of magic role names into the Group IDs that satisfy them
 func defaultRolesToGroupIDs(ownerID primitive.ObjectID, roleIDs ...string) Permissions {
 	result := make(Permissions, 0, len(roleIDs))
 
@@ -89,32 +87,6 @@ func defaultRolesToGroupIDs(ownerID primitive.ObjectID, roleIDs ...string) Permi
 	}
 
 	return result
-}
-
-// markdownToHTML converts a Markdown string to HTML using the Goldmark library.
-func markdownToHTML(value string, options ...goldmark.Extender) string {
-
-	valueBytes := convert.Bytes(value)
-
-	var buffer bytes.Buffer
-
-	// Default options
-	// https://github.com/yuin/goldmark#built-in-extensions
-	if len(options) == 0 {
-		options = []goldmark.Extender{
-			extension.Linkify,
-			extension.Typographer,
-		}
-	}
-
-	md := goldmark.New(goldmark.WithExtensions(options...))
-
-	if err := md.Convert([]byte(valueBytes), &buffer); err != nil {
-		derp.Report(derp.Wrap(err, "tools.templates.functions.markdown", "Converting Markdown to HTML"))
-	}
-
-	return buffer.String()
-
 }
 
 // oneOf returns TRUE if the value matches any of the provided options

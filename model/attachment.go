@@ -45,6 +45,7 @@ func NewAttachment(objectType string, objectID primitive.ObjectID) Attachment {
 	}
 }
 
+// NewEmptyAttachment returns a zero-value Attachment, with no ID and no rules
 func NewEmptyAttachment() Attachment {
 	return Attachment{}
 }
@@ -103,6 +104,7 @@ func (attachment Attachment) RolesToPrivilegeIDs(roleIDs ...string) Permissions 
  * Other Methods
  ******************************************/
 
+// CalcURL returns the public URL of this Attachment on the provided host
 func (attachment Attachment) CalcURL(host string) string {
 
 	switch attachment.ObjectType {
@@ -118,6 +120,7 @@ func (attachment Attachment) CalcURL(host string) string {
 	}
 }
 
+// DownloadExtension returns the file extension this Attachment is served with, which may differ from the original
 func (attachment Attachment) DownloadExtension() string {
 
 	ext := strings.ToLower(attachment.OriginalExtension())
@@ -130,6 +133,7 @@ func (attachment Attachment) DownloadExtension() string {
 	return ext
 }
 
+// DownloadMimeType returns the content type this Attachment is served with
 func (attachment Attachment) DownloadMimeType() string {
 	return mime.TypeByExtension(attachment.DownloadExtension())
 }
@@ -183,9 +187,11 @@ func (attachment Attachment) CanServeInline() bool {
 		return true
 	}
 
-	// RULE: The sniffed content-type must agree with the filename.  A file whose name
-	// and contents disagree is lying in one direction or the other, so it is downloaded
-	// rather than rendered.
+	// RULE: The sniffed contents must be a re-encodable category too.  MediaServer picks
+	// the pipeline from the filename, so this is defense in depth: a file named ".png"
+	// that actually contains HTML is downloaded rather than rendered, whatever FFmpeg
+	// makes of it.  The two categories need not match each other -- FFmpeg generates
+	// the output bytes either way.
 	return isInlineMediaCategory(list.Slash(attachment.ContentType).First())
 }
 
@@ -203,15 +209,21 @@ func isInlineMediaCategory(mimeCategory string) bool {
 	return false
 }
 
+// AspectRatio returns the width-to-height ratio of this Attachment, or "auto" if its dimensions are unknown
 func (attachment Attachment) AspectRatio() string {
 
-	if attachment.Width == 0 {
-		return ""
+	// RULE: Without both dimensions there is no ratio to compute
+	if !attachment.HasDimensions() {
+		return "auto"
 	}
 
-	return strconv.Itoa(attachment.Width / attachment.Height)
+	// Templates drop this straight into a CSS `aspect-ratio`, so emit a real
+	// number.  Integer division would round every ratio down to 1 or 0.
+	ratio := float64(attachment.Width) / float64(attachment.Height)
+	return strconv.FormatFloat(ratio, 'f', -1, 64)
 }
 
+// HasDimensions returns TRUE if this Attachment has both a width and a height
 func (attachment Attachment) HasDimensions() bool {
 	if attachment.Width == 0 {
 		return false
@@ -224,6 +236,7 @@ func (attachment Attachment) HasDimensions() bool {
 	return true
 }
 
+// FileSpec returns the mediaserver FileSpec that describes how to render this Attachment for the provided URL
 func (attachment Attachment) FileSpec(address *url.URL) mediaserver.FileSpec {
 
 	if address == nil {
@@ -235,6 +248,7 @@ func (attachment Attachment) FileSpec(address *url.URL) mediaserver.FileSpec {
 	return attachment.Rules.FileSpec(address, attachment.OriginalExtension())
 }
 
+// JSONLD returns this Attachment as a JSON-LD map
 func (attachment Attachment) JSONLD() map[string]any {
 
 	result := map[string]any{
@@ -260,6 +274,7 @@ func (attachment Attachment) JSONLD() map[string]any {
  * Setter Methods
  ******************************************/
 
+// SetRules replaces the dimension and format rules that this Attachment is processed with
 func (attachment *Attachment) SetRules(width int, height int, extensions []string) {
 	attachment.Rules.Extensions = extensions
 	attachment.Rules.Width = width

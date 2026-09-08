@@ -5,16 +5,18 @@ import (
 	"github.com/benpate/rosetta/convert"
 )
 
+// Slice is a strictly-typed list of property values, all of the same type
 type Slice[T property.Value] []T
 
+// NewSlice converts an arbitrary value into a Slice, mapping each item through the provided function
 func NewSlice[T property.Value](fn func(any) T, value any) Slice[T] {
 
 	items := convert.SliceOfAny(value)
 
 	result := make(Slice[T], 0, len(items))
 
-	for index, item := range items {
-		result[index] = fn(item)
+	for _, item := range items {
+		result = append(result, fn(item))
 	}
 
 	return result
@@ -93,25 +95,25 @@ func (slice Slice[T]) Clone() property.Value {
 		cloned := slice[index].Clone()
 
 		if match, isMatch := cloned.(T); isMatch {
-			result[index] = match
+			result = append(result, match)
 			continue
 		}
 
 		// This should never happen
 		var empty T
-		result[index] = empty
+		result = append(result, empty)
 	}
 
 	return result
 }
 
-// / Custom Methods for Slice type
+// SliceOfMap returns the map representation of every value in this Slice
 func (slice Slice[T]) SliceOfMap() []map[string]any {
 
 	result := make([]map[string]any, 0, slice.Len())
 
 	for index := range slice {
-		result[index] = slice[index].Map()
+		result = append(result, slice[index].Map())
 	}
 
 	return result

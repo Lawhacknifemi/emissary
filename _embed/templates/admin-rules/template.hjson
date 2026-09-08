@@ -33,9 +33,11 @@
 						{type:"select", path:"type", label:"Type", options:{provider:"rule-types"}}
 						{type:"text", path:"trigger", label:"Trigger Text"}
 						{type:"select", path:"action", label:"Action", options:{provider:"rule-actions"}}
+						{type:"text", path:"label", label:"Label", description:"Warning text shown on posts that match this rule", options:{show-if:"action is LABEL"}}
 					]
 				}},
 				{do:"save"}
+				{do:"startup-save-task", value:"/admin/rules"}
 			]}
 			{do:"refresh-page"}
 		]}
@@ -53,20 +55,23 @@
 							{type:"select", path:"type", label:"Type", options:{provider:"rule-types"}}
 							{type:"text", path:"trigger", label:"Trigger Text"}
 							{type:"select", path:"action", label:"Action", options:{provider:"rule-actions"}}
+							{type:"text", path:"label", label:"Label", description:"Warning text shown on posts that match this rule", options:{show-if:"action is LABEL"}}
 						]
 					}
 					options:["delete:/admin/rules/{{.RuleID}}/delete"]
 					}
 				]}
 			{do:"save"}
+			{do:"startup-save-task", value:"/admin/rules"}
 			{do:"refresh-page"}
 		]}
 		
 		delete: {
 			roles:["owner"]
 			steps:[
-				{do: "delete"}
+				{do:"delete"}
 				{do:"refresh-page"}
+				{do:"startup-save-task", value:"/admin/rules"}
 			]
 		}
 	}

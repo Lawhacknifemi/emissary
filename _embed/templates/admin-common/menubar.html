@@ -1,4 +1,3 @@
-
 <div id="menu-bar" hx-push-url="true" script="init send SelectNav(id:'admin')">
 	<div class="center">
 		<a href="/admin/domain/index" hx-boost="true" class="turboclick {{if eq .Token `domain`}}selected{{end}}">
@@ -29,8 +28,7 @@
 
 </div>
 
-<!-- Sub-Menus -->
-{{ if in .Token "users" "groups" }}
+{{- if in .Token "users" "groups" -}}
 
 	<div id="menu-bar-sub">
 		<a href="/admin/users/index" hx-boost="true" class="turboclick {{if eq `users` .Token}}selected{{end}}">
@@ -41,7 +39,7 @@
 		</a>
 	</div>
 
-{{ else if in .Token "search" "followers" "following" "tags" }}
+{{- else if in .Token "search" "followers" "following" "tags" -}}
 
 	<div id="menu-bar-sub">
 	
@@ -63,7 +61,7 @@
 
 	</div>
 
-{{ else if in .Token "connections" "mls" "webhooks" "syndication" "sso" }}
+{{- else if in .Token "connections" "mls" "webhooks" "syndication" "sso" -}}
 
 	<span id="menu-bar-sub">
 
@@ -89,4 +87,6 @@
 
 	</span>
 
-{{ end }}
+{{- end -}}
+
+{{- template "startup" . -}}

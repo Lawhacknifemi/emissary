@@ -12,6 +12,7 @@ type StepWithChildren struct {
 	SubSteps []step.Step
 }
 
+// Get renders this step during a GET request. Implements the Step interface.
 func (step StepWithChildren) Get(builder Builder, buffer io.Writer) PipelineBehavior {
 	return nil
 }
@@ -48,14 +49,17 @@ func (step StepWithChildren) Post(builder Builder, buffer io.Writer) PipelineBeh
 
 		// Execute the POST build pipeline on the child
 		childResult := Pipeline(step.SubSteps).Post(factory, &childStream, buffer)
-		childResult.Error = derp.WrapIF(result.Error, location, "Executing steps for child")
+		childResult.Error = derp.WrapIF(childResult.Error, location, "Executing steps for child")
 
+		// Collect this child's results (including its Error and Halt) into the accumulator
+		result.Merge(childResult)
+
+		// RULE: Merge must happen BEFORE this check, or a child's Halt is only
+		// noticed on the following iteration -- and never at all for the last child.
+		// A failing step returns Halt().WithError(), so this covers errors too.
 		if result.Halt {
 			return UseResult(result)
 		}
-
-		// Reset the child object so that old records don't bleed into new ones.
-		result.Merge(childResult)
 	}
 
 	return UseResult(result)

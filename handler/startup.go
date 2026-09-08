@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/EmissarySocial/emissary/build"
+	"github.com/EmissarySocial/emissary/model"
 	"github.com/EmissarySocial/emissary/service"
 	"github.com/benpate/data"
 	"github.com/benpate/derp"
@@ -11,13 +12,29 @@ import (
 	"github.com/benpate/steranko"
 )
 
+// GetStartup renders a page of the first-run setup checklist
 func GetStartup(ctx *steranko.Context, factory *service.Factory, session data.Session) error {
+	return doStartup(ctx, factory, session, build.ActionMethodGet)
+}
 
-	const location = "handler.GetStartup"
+// PostStartup applies an action from the first-run setup checklist
+func PostStartup(ctx *steranko.Context, factory *service.Factory, session data.Session) error {
+	return doStartup(ctx, factory, session, build.ActionMethodPost)
+}
+
+// doStartup renders or applies a setup checklist action, for a domain owner only
+func doStartup(ctx *steranko.Context, factory *service.Factory, session data.Session, method build.ActionMethod) error {
+
+	const location = "handler.doStartup"
 
 	// Only domain owners can access admin pages
 	if !isOwner(ctx.Authorization()) {
 		return derp.Unauthorized(location, "Unauthorized")
+	}
+
+	// RULE: The startup checklist is only available while the Domain is still being set up.  Once the
+	if domain := factory.Domain().Get(); domain.StateID != model.DomainStateStartup {
+		return ctx.Redirect(http.StatusPermanentRedirect, "/")
 	}
 
 	// Collect parameters to build
@@ -37,58 +54,10 @@ func GetStartup(ctx *steranko.Context, factory *service.Factory, session data.Se
 		return derp.Wrap(err, location, "Creating builder")
 	}
 
-	// Render the HTML page.
-	result, err := builder.Render()
-
-	if err != nil {
+	// Build the HTML
+	if err := build.AsHTML(ctx, factory, builder, method); err != nil {
 		return derp.Wrap(err, location, "Building page")
 	}
 
-	// Return the HTML page to the browser
-	return ctx.HTML(http.StatusOK, string(result))
-}
-
-func PostStartup(ctx *steranko.Context, factory *service.Factory, session data.Session) error {
-
-	const location = "handler.PostStartup"
-
-	// Only domain owners can access admin pages
-	if !isOwner(ctx.Authorization()) {
-		return derp.Unauthorized(location, "Unauthorized")
-	}
-
-	// Try to load the requested theme from the Theme Service
-	themeService := factory.Theme()
-	themeID := ctx.QueryParam("themeId")
-	theme := themeService.GetTheme(themeID)
-
-	if theme.IsEmpty() {
-		return derp.NotFound("handler.PostStartup", "Theme not found", themeID)
-	}
-
-	// Load/Initialize the Domain value
-	domainService := factory.Domain()
-	domain := *domainService.Get()
-
-	// Save the new ThemeID to the database
-	domain.ThemeID = themeID
-	if err := domainService.Save(session, domain, "Change Theme"); err != nil {
-		return derp.Wrap(err, location, "Saving domain", domain)
-	}
-
-	// Initialize Streams
-	streamService := factory.Stream()
-	if err := streamService.Startup(session, &theme); err != nil {
-		return derp.Wrap(err, location, "Initializing Streams", themeID)
-	}
-
-	// Initialize Groups
-	groupService := factory.Group()
-	if err := groupService.Startup(session, &theme); err != nil {
-		return derp.Wrap(err, location, "Initializing Groups", themeID)
-	}
-
-	// Success!!!!!
-	ctx.Response().Header().Set("HX-Redirect", "/")
-	return ctx.NoContent(http.StatusOK)
+	return nil
 }

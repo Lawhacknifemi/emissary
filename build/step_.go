@@ -6,6 +6,7 @@ import (
 	"github.com/EmissarySocial/emissary/model/step"
 )
 
+// Step is a single unit of work inside a build Pipeline
 type Step interface {
 	Get(Builder, io.Writer) PipelineBehavior
 	Post(Builder, io.Writer) PipelineBehavior
@@ -164,6 +165,9 @@ func ExecutableStep(stepInfo step.Step) Step {
 	case step.SetRenderData:
 		return StepSetRenderData(s)
 
+	case step.SetSharing:
+		return StepSetSharing(s)
+
 	case step.SetSimpleSharing:
 		return StepSetSimpleSharing(s)
 
@@ -184,6 +188,15 @@ func ExecutableStep(stepInfo step.Step) Step {
 
 	case step.SortWidgets:
 		return StepSortWidgets(s)
+
+	case step.StartupComplete:
+		return StepStartupComplete(s)
+
+	case step.StartupCreateStreams:
+		return StepStartupCreateStreams(s)
+
+	case step.StartupSaveTask:
+		return StepStartupSaveTask(s)
 
 	case step.StreamPromoteDraft:
 		return StepStreamPromoteDraft(s)

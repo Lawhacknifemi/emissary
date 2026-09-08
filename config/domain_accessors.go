@@ -4,6 +4,7 @@ import (
 	"github.com/benpate/rosetta/schema"
 )
 
+// DomainSchema returns the rosetta schema that describes a Domain
 func DomainSchema() schema.Element {
 
 	return schema.Object{
@@ -14,7 +15,10 @@ func DomainSchema() schema.Element {
 			"databaseName":  schema.String{Pattern: `[a-zA-Z0-9-_]+`, Required: true},
 			"smtp":          SMTPConnectionSchema(),
 			"owner":         OwnerSchema(),
-			"masterKey":     schema.String{MinLength: 64, MaxLength: 64, Pattern: "^[0-9A-Fa-f]{64}$"},
+
+			// RULE: masterKey is deliberately absent.  It is key material, generated
+			// internally and persisted only through storage marshaling -- exposing it
+			// here would make it settable by a crafted POST (BUG-110).
 		},
 	}
 }
@@ -23,6 +27,7 @@ func DomainSchema() schema.Element {
  * Getter/Setter Interfaces
  ******************************************/
 
+// GetPointer returns a pointer to the named property. Implements schema.PointerGetter.
 func (domain *Domain) GetPointer(name string) (any, bool) {
 
 	switch name {
@@ -44,9 +49,6 @@ func (domain *Domain) GetPointer(name string) (any, bool) {
 
 	case "databaseName":
 		return &domain.DatabaseName, true
-
-	case "masterKey":
-		return &domain.MasterKey, true
 	}
 
 	return nil, false

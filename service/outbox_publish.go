@@ -4,13 +4,12 @@ import (
 	"iter"
 	"maps"
 	"slices"
-	"time"
 
 	"github.com/EmissarySocial/emissary/model"
 	"github.com/EmissarySocial/emissary/tools/postcommit"
 	"github.com/benpate/data"
 	"github.com/benpate/derp"
-	"github.com/benpate/hannibal"
+	"github.com/benpate/hannibal/datetime"
 	"github.com/benpate/hannibal/outbox"
 	"github.com/benpate/hannibal/sender"
 	"github.com/benpate/hannibal/streams"
@@ -226,7 +225,7 @@ func (service *Outbox) DeleteActivity(session data.Session, actorType string, ac
 			vocab.PropertyID:   objectID,
 			vocab.PropertyType: vocab.ObjectTypeTombstone,
 		},
-		vocab.PropertyPublished: hannibal.TimeFormat(time.Now()),
+		vocab.PropertyPublished: datetime.Now(),
 	})
 
 	if err := service.Publish(session, actorType, actorID, document, permissions); err != nil {
@@ -266,7 +265,7 @@ func (service *Outbox) UndoActivity(session data.Session, actorType string, acto
 		vocab.PropertyActor:     actor.ActorID(),
 		vocab.PropertyType:      vocab.ActivityTypeUndo,
 		vocab.PropertyObject:    originalActivity,
-		vocab.PropertyPublished: hannibal.TimeFormat(time.Now()),
+		vocab.PropertyPublished: datetime.Now(),
 	}
 
 	// Mirror the original activity's top-level audience (`to`/`cc`) onto the Undo. Publish derives
@@ -335,6 +334,7 @@ func (service *Outbox) removeOutboxMessagesByActivityURL(session data.Session, a
 	return nil
 }
 
+// getActor returns the outbox Actor for the named actor type and ID
 func (service *Outbox) getActor(session data.Session, actorType string, actorID primitive.ObjectID) (outbox.Actor, error) {
 
 	switch actorType {
@@ -384,6 +384,8 @@ func (service *Outbox) publishRecipients(session data.Session, actorType string,
 	)
 }
 
+// addresseesAsFollowers presents a list of addressee URLs as synthetic ActivityPub Followers, so that
+// directly-addressed recipients can share the follower fan-out path
 func (service *Outbox) addresseesAsFollowers(addressees iter.Seq[string]) iter.Seq[model.Follower] {
 
 	return func(yield func(model.Follower) bool) {

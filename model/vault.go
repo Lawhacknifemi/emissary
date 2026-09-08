@@ -86,6 +86,7 @@ func (vault *Vault) SetString(name string, value string) bool {
 	return true
 }
 
+// Encrypt seals this Vault's plaintext values using the provided key
 func (vault *Vault) Encrypt(encryptionKey []byte) error {
 
 	const location = "model.vault.Encrypt"
@@ -137,9 +138,19 @@ func (vault *Vault) Encrypt(encryptionKey []byte) error {
 	return nil
 }
 
+// Decrypt opens the named values in this Vault using the provided key
 func (vault Vault) Decrypt(encryptionKey []byte, values ...string) (mapof.String, error) {
 
 	const location = "model.vault.Decrypt"
+
+	result := make(mapof.String, len(values))
+
+	// If there are no encrypted values, then there is nothing to decrypt, so skip
+	// cipher setup entirely.  This mirrors the early exit in Encrypt.
+	if len(vault.Encrypted) == 0 {
+		vault.patchPlaintext(result, values...)
+		return result, nil
+	}
 
 	// Create AES block cipher
 	block, err := aes.NewCipher(encryptionKey)
@@ -163,7 +174,6 @@ func (vault Vault) Decrypt(encryptionKey []byte, values ...string) (mapof.String
 	}
 
 	// Decode ciphertext values
-	result := make(mapof.String, len(values))
 	for property, value := range vault.Encrypted {
 
 		// If values are specified, then only decrypt those values.
@@ -187,12 +197,22 @@ func (vault Vault) Decrypt(encryptionKey []byte, values ...string) (mapof.String
 		result[property] = string(plaintext)
 	}
 
-	// Patch plaintext values into the result.
+	// Patch plaintext values into the result
+	vault.patchPlaintext(result, values...)
+
+	// Success.
+	return result, nil
+}
+
+// patchPlaintext copies the vault's not-yet-encrypted plaintext values into result,
+// honoring the same optional property filter that Decrypt applies.
+func (vault Vault) patchPlaintext(result mapof.String, values ...string) {
+
 	// If a property is in the plaintext, then it hasn't been encrypted/saved yet.
-	// They're still valid to use, so put them in here, if applicable.
+	// It is still valid to use, so include it here, if applicable.
 	for property, value := range vault.plaintext {
 
-		// If values are specified, then only decrypt those values.
+		// If values are specified, then only include those values.
 		if len(values) > 0 {
 			if !slices.Contains(values, property) {
 				continue
@@ -201,9 +221,6 @@ func (vault Vault) Decrypt(encryptionKey []byte, values ...string) (mapof.String
 
 		result[property] = value
 	}
-
-	// Success.
-	return result, nil
 }
 
 // hasEncryptableValue returns TRUE if there are any non-empty/non-obscured values in the vault

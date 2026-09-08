@@ -34,6 +34,7 @@ import (
 	_ "github.com/benpate/digital-dome/dome4echo" // TEMPORARILY unused -- see disabled e.Pre() call below; re-enable both before shipping
 	"github.com/benpate/form/widget"
 	"github.com/benpate/hannibal"
+	"github.com/benpate/hannibal/sigs"
 	"github.com/benpate/rosetta/mapof"
 	"github.com/benpate/rosetta/slice"
 	tootecho "github.com/benpate/toot-echo"
@@ -48,6 +49,9 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
+// embeddedFiles contains the templates, themes, widgets, and static assets that ship inside the
+// Emissary binary
+//
 //go:embed all:_embed/**
 var embeddedFiles embed.FS
 
@@ -55,6 +59,8 @@ var embeddedFiles embed.FS
  * Main Application Entry Point
  ******************************************/
 
+// main boots the Emissary server: it reads the configuration, then serves either the setup
+// console or the live domains, depending on whether that configuration is complete.
 func main() {
 
 	fmt.Println(" _____           _                          ")
@@ -66,8 +72,7 @@ func main() {
 	fmt.Println("")
 
 	// Derp configuration (rewritten once we have a shared database)
-	derp.Plugins.Clear()
-	derp.Plugins.Add(derpconsole.New())
+	derp.SetPlugins(derpconsole.New())
 
 	// Troubleshoot / Error Reporting
 	spew.Config.DisableMethods = true
@@ -107,7 +112,19 @@ func main() {
 	// file, so the run mode can be decided BEFORE any factory is constructed.
 	// (FACTORY-MODES D2: a not-ready config must reach the setup console, never
 	// the live factory's hard requirements.)
-	storage := config.Load(&commandLineArgs)
+	//
+	// RULE: This is where boot failures end the process.  The config and server packages never
+	// call os.Exit -- they return errors carrying the operator-facing guidance, and main (here)
+	// is the ONE place that decides a failure is fatal.
+	storage, err := config.Load(&commandLineArgs)
+
+	if err != nil {
+		derp.Report(err)
+		log.Error().Msg("Emissary could not start because the configuration could not be loaded.")
+		log.Error().Msg(derp.Message(err))
+		os.Exit(1)
+	}
+
 	subscription := storage.Subscribe()
 	firstConfig := <-subscription
 
@@ -123,7 +140,7 @@ func main() {
 	if runSetup {
 
 		// Build the setup factory (tolerates a missing/unreachable common database)
-		setupFactory := server.NewSetupFactory(storage, firstConfig, embeddedFiles)
+		setupFactory := server.NewSetupFactory(storage, firstConfig, subscription, embeddedFiles)
 
 		// Get config modifiers from the command line (like HTTP PORT)
 		configOptions := commandLineArgs.ConfigOptions()
@@ -140,7 +157,16 @@ func main() {
 	} else {
 
 		// Build the live factory (hard-requires the common database)
-		serverFactory := server.NewFactory(storage, firstConfig, subscription, embeddedFiles)
+		serverFactory, err := server.NewFactory(storage, firstConfig, subscription, embeddedFiles)
+
+		// RULE: A FIRST configuration that cannot be applied refuses to start the server.  Later
+		// configurations that fail are handled inside the factory, which keeps last-known-good.
+		if err != nil {
+			derp.Report(err)
+			log.Error().Msg("Emissary could not start because the configuration could not be applied.")
+			log.Error().Msg(derp.Message(err))
+			os.Exit(1)
+		}
 
 		// Add routes for standard web server
 		makeStandardRoutes(serverFactory, e)
@@ -167,12 +193,6 @@ func main() {
 /******************************************
  * Routes for Different Application Modes
  ******************************************/
-
-// configProvider is the minimal factory surface needed by the HTTP bootstrap
-// helpers below, which both run modes satisfy.
-type configProvider interface {
-	Config() config.Config
-}
 
 // makeSetupRoutes generates a new Echo instance for the setup behavior
 func makeSetupRoutes(factory *server.SetupFactory, e *echo.Echo) {
@@ -218,7 +238,7 @@ func makeSetupRoutes(factory *server.SetupFactory, e *echo.Echo) {
 	e.GET("/.themes/:themeId/resources/:filename", handler.GetThemeResource(factory))
 }
 
-// makeStandardRoutes generates a new Echo instance the primary server behavior
+// makeStandardRoutes configures the middleware and routes for the primary server behavior
 func makeStandardRoutes(factory *server.Factory, e *echo.Echo) {
 
 	// Boot proof-of-life prints unconditionally: it must be visible at every log level
@@ -256,6 +276,16 @@ func makeStandardRoutes(factory *server.Factory, e *echo.Echo) {
 
 	// Restore Steranko in the future
 	// e.Use(steranko.Middleware(factory))
+
+	makeApplicationRoutes(factory, e)
+}
+
+// makeApplicationRoutes registers every application route on the provided Echo instance
+func makeApplicationRoutes(factory *server.Factory, e *echo.Echo) {
+
+	// Split from makeStandardRoutes (which owns middleware) so that server_routes_test.go can build
+	// the route table alone.  Every handler below closes over the Factory and dereferences it only
+	// once a request arrives, so a nil Factory registers the real routes safely.
 
 	// Common routes (but not .well-known)
 	e.GET("/robots.txt", handler.RobotsTxt) // https://developers.google.com/search/docs/advanced/robots/create-robots-txt
@@ -459,18 +489,24 @@ func makeStandardRoutes(factory *server.Factory, e *echo.Echo) {
 	e.POST("/@guest/identifier", handler.WithIdentity(factory, handler.PostIdentityIdentifier))
 
 	// Global Search Actor (ActivityPub)
+	// RULE: The followers/following collections are advertised in the actor document, so they
+	// must answer GET.  They were registered as POST until BUG-24; GetEmptyCollection is a read
+	// handler, and a POST to a followers collection is meaningless for an actor that accepts no C2S.
 	e.GET("/@search", handler.WithFactory(factory, ap_domain.GetJSONLD))
-	e.POST("/@search/pub/followers", handler.WithFactory(factory, handler.GetEmptyCollection))
-	e.POST("/@search/pub/following", handler.WithFactory(factory, handler.GetEmptyCollection))
+	e.GET("/@search/pub/followers", handler.WithFactory(factory, handler.GetEmptyCollection))
+	e.GET("/@search/pub/following", handler.WithFactory(factory, handler.GetEmptyCollection))
+	e.GET("/@search/pub/inbox", handler.WithFactory(factory, handler.GetEmptyCollection))
 	e.POST("/@search/pub/inbox", handler.WithFactory(factory, ap_domain.PostInbox))
 	e.GET("/@search/pub/outbox", handler.WithFactory(factory, ap_domain.GetOutboxCollection))
 	e.GET("/@search/pub/outbox/:searchResultId", handler.WithFactory(factory, ap_domain.GetOutboxMessage))
 
 	// Search Query Routes (ActivityPub)
+	// RULE: These routes must mirror the @search routes above, verb for verb.  The two actors are
+	// the same type and must give the same answer to the same request (BUG-24).
 	e.POST("/.searchQuery", handler.WithFactory(factory, handler.PostSearchLookup))
 	e.GET("/@search_:searchId", handler.WithSearchQuery(factory, ap_search.GetJSONLD))
-	e.POST("/@search_:searchId/pub/followers", handler.WithFactory(factory, handler.GetEmptyCollection))
-	e.POST("/@search_:searchId/pub/following", handler.WithFactory(factory, handler.GetEmptyCollection))
+	e.GET("/@search_:searchId/pub/followers", handler.WithFactory(factory, handler.GetEmptyCollection))
+	e.GET("/@search_:searchId/pub/following", handler.WithFactory(factory, handler.GetEmptyCollection))
 	e.GET("/@search_:searchId/pub/inbox", handler.WithFactory(factory, handler.GetEmptyCollection))
 	e.POST("/@search_:searchId/pub/inbox", handler.WithSearchQuery(factory, ap_search.PostInbox))
 	e.GET("/@search_:searchId/pub/outbox", handler.WithSearchQuery(factory, ap_search.GetOutboxCollection))
@@ -507,8 +543,6 @@ func makeStandardRoutes(factory *server.Factory, e *echo.Echo) {
 	// ActivityPub Routes for Users
 	e.GET("/@:userId/pub", handler.WithUser(factory, handler.GetOutbox))
 	e.GET("/@:userId/pub/collections/:collectionId", handler.WithActorAndUser(factory, ap_user.GetCollection))
-	e.GET("/@:userId/pub/disliked", handler.WithUser(factory, ap_user.GetResponseCollection))
-	e.GET("/@:userId/pub/disliked/:response", handler.WithUser(factory, ap_user.GetResponse))
 	e.GET("/@:userId/pub/featured", handler.WithUser(factory, ap_user.GetFeaturedCollection))
 	e.GET("/@:userId/pub/followers", handler.WithUser(factory, ap_user.GetFollowersCollection))
 	e.GET("/@:userId/pub/following", handler.WithUser(factory, ap_user.GetFollowingCollection))
@@ -526,11 +560,11 @@ func makeStandardRoutes(factory *server.Factory, e *echo.Echo) {
 	e.GET("/@:userId/pub/outbox/:messageId", handler.WithUser(factory, ap_user.GetOutboxActivity))
 	e.POST("/@:userId/pub/proxy", handler.WithAuthenticatedUser(factory, handler.PostProxyURL))
 
-	// Removing these paths for now. They're not in the standard ActivityPub specification.
+	// Removed these routes for now...
+	// e.GET("/@:userId/pub/disliked", handler.WithUser(factory, ap_user.GetResponseCollection))
+	// e.GET("/@:userId/pub/disliked/:response", handler.WithUser(factory, ap_user.GetResponse))
 	// e.GET("/@:userId/pub/liked", handler.WithUser(factory, ap_user.GetResponseCollection))
 	// e.GET("/@:userId/pub/liked/:response", handler.WithUser(factory, ap_user.GetResponse))
-	// e.GET("/@:userId/pub/shared", handler.WithUser(factory, ap_user.GetResponseCollection))
-	// e.GET("/@:userId/pub/shared/:response", handler.WithUser(factory, ap_user.GetResponse))
 
 	// Domain Admin Pages
 	e.GET("/admin", handler.RedirectTo("/admin/domain/index"))
@@ -549,6 +583,7 @@ func makeStandardRoutes(factory *server.Factory, e *echo.Echo) {
 	e.GET("/startup", handler.WithOwner(factory, handler.GetStartup))
 	e.GET("/startup/:action", handler.WithOwner(factory, handler.GetStartup))
 	e.POST("/startup", handler.WithOwner(factory, handler.PostStartup))
+	e.POST("/startup/:action", handler.WithOwner(factory, handler.PostStartup))
 
 	// OAuth Client Connections
 	e.GET("/oauth/metadata", handler.WithFactory(factory, handler.GetOAuthClientMetadata))
@@ -571,9 +606,9 @@ func makeStandardRoutes(factory *server.Factory, e *echo.Echo) {
  * Start HTTP/HTTPS Servers
  ******************************************/
 
-// startHTTP starts the HTTPS server using Let's Encrypt SSL certificates.
+// startHTTPS starts the HTTPS server using Let's Encrypt SSL certificates.
 // If the configured port is not available, it will wait one second and retry until it is
-func startHTTPS(factory configProvider, e *echo.Echo, options ...config.Option) {
+func startHTTPS(factory server.ConfigProvider, e *echo.Echo, options ...config.Option) {
 
 	// Get and modify the configuration
 	config := factory.Config()
@@ -582,18 +617,30 @@ func startHTTPS(factory configProvider, e *echo.Echo, options ...config.Option) 
 	// If HTTPS is configured, then try to start an HTTPS server
 	if portString, ok := config.HTTPSPortString(); ok {
 
-		// Find all NON-LOCAL domain names.  We need AT LEAST ONE to get an SSL Certificate
-		domains := slice.Filter(config.DomainNames(), uri.NotLocalHostname)
-
-		if len(domains) == 0 {
+		// RULE: We need AT LEAST ONE non-local domain before binding the TLS port, because a
+		// server with nothing to certify has no business holding :443.
+		//
+		// This check is still a BOOT-TIME gate, and deliberately so: binding :443 unconditionally
+		// would make every developer running with the default config fail on a privileged port.
+		// The consequence is that a server whose FIRST non-local domain is added at runtime still
+		// needs a restart to serve HTTPS.  Every domain added AFTER that is picked up live, by the
+		// host policy below.
+		if len(slice.Filter(config.DomainNames(), uri.NotLocalHostname)) == 0 {
 			fmt.Println("Skipping HTTPS server because there are no non-local domains.")
+			fmt.Println("Add a non-local domain and restart the server to enable HTTPS.")
 			return
 		}
 
-		// Initialize Let's Encrypt autocert for TLS certificates
+		// Initialize Let's Encrypt autocert for TLS certificates.
+		//
+		// RULE: HostPolicy and Cache read the LIVE configuration on every use -- see
+		// server.CertificateHosts and server.CertificateCache.  The Manager itself is built once
+		// and lives for the whole process, so anything captured here by value is frozen until the
+		// next restart.  Email is exactly that: autocert reads it once, when it registers the
+		// ACME account, and never again (BUG-137).
 		e.AutoTLSManager = autocert.Manager{
-			HostPolicy: autocert.HostWhitelist(domains...),
-			Cache:      autocert.DirCache(config.Certificates["location"]),
+			HostPolicy: server.NewCertificateHosts(factory).HostPolicy,
+			Cache:      server.NewCertificateCache(factory),
 			Prompt:     autocert.AcceptTOS,
 			Email:      config.AdminEmail,
 		}
@@ -614,7 +661,7 @@ func startHTTPS(factory configProvider, e *echo.Echo, options ...config.Option) 
 
 // startHTTP starts the HTTP server.
 // If the configured port is not available, it will wait one second and retry until it is
-func startHTTP(factory configProvider, e *echo.Echo, options ...config.Option) {
+func startHTTP(factory server.ConfigProvider, e *echo.Echo, options ...config.Option) {
 
 	// Get and modify the configuration
 	config := factory.Config()
@@ -642,22 +689,25 @@ func startHTTP(factory configProvider, e *echo.Echo, options ...config.Option) {
 
 // openLocalhostBrowser opens a browser window to the localhost URL
 // IF the server is configured to run on HTTP or HTTPS
-func openLocalhostBrowser(factory configProvider, options ...config.Option) {
+func openLocalhostBrowser(factory server.ConfigProvider, options ...config.Option) {
 
 	// Get and modify the configuration
 	config := factory.Config()
 	config.With(options...)
 
-	if portString, ok := config.HTTPPortString(); ok {
-		time.Sleep(500 * time.Millisecond)
+	portString, ok := config.HTTPPortString()
 
-		if err := browser.OpenURL("http://localhost" + portString + "/"); err != nil {
-			log.Debug().Err(err).Msg("Unable to open setup tool browser window. Visit http://localhost" + portString + "/ in your web browser to edit Emissary settings")
-		}
-
-	} else {
+	// RULE: The setup tool is unreachable without an HTTP port, so there is nothing to open
+	if !ok {
 		fmt.Println("ERROR: Unable to open setup tool because no HTTP port is configured.")
 		os.Exit(0)
+	}
+
+	// Give the server a moment to begin listening before the browser knocks
+	time.Sleep(500 * time.Millisecond)
+
+	if err := browser.OpenURL("http://localhost" + portString + "/"); err != nil {
+		log.Debug().Err(err).Msg("Unable to open setup tool browser window. Visit http://localhost" + portString + "/ in your web browser to edit Emissary settings")
 	}
 }
 
@@ -710,6 +760,16 @@ func errorHandler(err error, ctx echo.Context) {
 			return
 		}
 
+		// RULE: A signed request is a machine, so it gets the status code rather than a redirect.
+		// Only a browser can act on /signin, and a peer whose signature was just refused would read
+		// the 303 as "your request worked" -- re-hiding the failure that the refusal exists to
+		// surface. The Accept header cannot be relied on to tell them apart here: a peer with a
+		// misconfigured Accept is exactly the population being diagnosed. (BUG-20)
+		if sigs.HasSignature(request) {
+			_ = ctx.String(derp.ErrorCode(err), derp.Message(err))
+			return
+		}
+
 		// Otherwise, forward the user to the signin page
 		requestURL := request.URL
 
@@ -756,7 +816,7 @@ func errorHandler(err error, ctx echo.Context) {
 func handleActivityPubError(ctx echo.Context, err error) bool {
 
 	// If this is not an ActivityPub request, then don't handle it here.
-	if !hannibal.IsActivityPubContentType(ctx.Request().Header.Get("Accept")) {
+	if hannibal.NotActivityPubRequest(ctx.Request()) {
 		return false
 	}
 

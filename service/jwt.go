@@ -20,12 +20,12 @@ import (
 
 // JWT is a SHARED SERVICE that generates and validates JWT keys.
 type JWT struct {
-	server    data.Server                 // Server instance for database access
-	cache     otter.Cache[string, []byte] // In-Memory cache for frequently used keys
-	hasCache  bool                        // Flag to indicate if the cache is enabled
-	masterKey string                      // "Key Encrypting Key" used to encode/decode JWT keys that are stored in the collection
+	server   data.Server                 // Server instance for database access
+	cache    otter.Cache[string, []byte] // In-Memory cache for frequently used keys
+	hasCache bool                        // Flag to indicate if the cache is enabled
 }
 
+// NewJWT returns an empty JWT service, which Refresh populates
 func NewJWT() JWT {
 	return JWT{}
 }
@@ -34,10 +34,10 @@ func NewJWT() JWT {
  * Lifecycle Methods
  ******************************************/
 
-func (service *JWT) Refresh(server data.Server, masterKey string) {
+// Refresh updates this service with the latest configuration values
+func (service *JWT) Refresh(server data.Server) {
 
 	service.server = server
-	service.masterKey = masterKey
 
 	builder := otter.MustBuilder[string, []byte](32).
 		WithTTL(24 * time.Hour)
@@ -51,6 +51,7 @@ func (service *JWT) Refresh(server data.Server, masterKey string) {
 	}
 }
 
+// Close stops any background processes controlled by this service
 func (service *JWT) Close() {
 	service.cache.Close()
 }
@@ -112,6 +113,7 @@ func (service *JWT) Parse(request *http.Request) (*jwt.Token, error) {
 	return service.ParseString(authorization)
 }
 
+// ParseString parses and verifies a JWT from its encoded string form
 func (service *JWT) ParseString(tokenString string) (*jwt.Token, error) {
 
 	const location = "service.JWT.ParseString"
@@ -137,6 +139,7 @@ func (service *JWT) ParseString(tokenString string) (*jwt.Token, error) {
  * Database Methods
  ******************************************/
 
+// collection returns the JWT collection for the provided database session
 func (service *JWT) collection(ctx context.Context) (data.Collection, error) {
 
 	const location = "service.JWT.collection"
@@ -268,6 +271,7 @@ func (service *JWT) load(keyName string) ([]byte, error) {
  * Encryption Methods
  ******************************************/
 
+// NewToken signs the provided claims into an encoded JWT, using the current signing key
 func (service *JWT) NewToken(claims jwt.Claims) (string, error) {
 
 	const location = "service.JWT.NewToken"
@@ -294,6 +298,7 @@ func (service *JWT) NewToken(claims jwt.Claims) (string, error) {
 	return result, nil
 }
 
+// ParseToken parses and verifies a JWT, unmarshalling it into the provided claims
 func (service *JWT) ParseToken(tokenString string, claims jwt.Claims) error {
 
 	const location = "service.JWT.ParseToken"
@@ -311,52 +316,19 @@ func (service *JWT) ParseToken(tokenString string, claims jwt.Claims) error {
  * Encryption Methods
  ******************************************/
 
-// encrypt uses the service's KEK to encrypt the plaintext into an encrypted value.
+// encrypt converts a plaintext JWT key into the form that is stored in the collection.
 func (service *JWT) encrypt(plaintext []byte) ([]byte, error) {
 
+	// TODO: BUG-13: JWT keys are stored WITHOUT encryption.  Restoring the
+	// Key-Encrypting-Key feature requires an AES-GCM implementation (plain AES
+	// truncates at the block boundary) and a decision on where the KEK comes from,
+	// since the unused server-wide masterKey was removed in BUG-110.
 	return plaintext, nil
-
-	// TODO: Restore Key-Encrypting-Key feature for JWT keys.
-	// The following commented code does not work because the AES algorithm
-	// only works with fixed-size blocks, so encrypted data was being truncated
-	// at the first block boundary. Instead,  need to use a GCM mode as described in:
-	// https://stackoverflow.com/questions/75064248/golang-aes-decryption-is-not-returning-same-text
-	/*
-		const location = "service.JWT.encrypt"
-
-		// Create an AES cipher
-		cipher, err := aes.NewCipher(service.keyEncryptingKey)
-
-		if err != nil {
-			return []byte{}, derp.Wrap(err, location, "Creating AES cipher")
-		}
-
-		// Encrypt the plaintext
-		result := make([]byte, 128)
-		cipher.Encrypt(result, plaintext)
-
-		return result, nil
-	*/
 }
 
-// decrypt uses the service's KEK to decrypt an encrypted value into plaintext
+// decrypt converts a stored JWT key back into its plaintext form.
 func (service *JWT) decrypt(encrypted []byte) ([]byte, error) {
 
+	// Pass-through until the Key-Encrypting-Key feature is restored (see encrypt above)
 	return encrypted, nil
-	/*
-		const location = "service.JWT.decrypt"
-
-		// Create an AES cipher
-		cipher, err := aes.NewCipher(service.keyEncryptingKey)
-
-		if err != nil {
-			return []byte{}, derp.Wrap(err, location, "Creating AES cipher")
-		}
-
-		// Decrypt the key in memory
-		result := make([]byte, 128)
-		cipher.Decrypt(result, encrypted)
-
-		return result, nil
-	*/
 }

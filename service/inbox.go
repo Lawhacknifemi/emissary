@@ -6,11 +6,13 @@ import (
 
 	"github.com/EmissarySocial/emissary/model"
 	"github.com/EmissarySocial/emissary/realtime"
+	"github.com/EmissarySocial/emissary/tools/assanitizer"
 	"github.com/benpate/data"
 	"github.com/benpate/data/option"
 	"github.com/benpate/derp"
 	"github.com/benpate/exp"
 	"github.com/benpate/hannibal/collection"
+	"github.com/benpate/hannibal/property"
 	"github.com/benpate/hannibal/vocab"
 	"github.com/benpate/rosetta/mapof"
 	"github.com/benpate/rosetta/ranges"
@@ -51,6 +53,7 @@ func (service *Inbox) Close() {
  * Common Data Methods
  ******************************************/
 
+// collection returns the mongo collection where InboxActivities are stored
 func (service *Inbox) collection(session data.Session) data.Collection {
 	return session.Collection("Inbox")
 }
@@ -120,6 +123,22 @@ func (service *Inbox) Save(session data.Session, inboxActivity *model.InboxActiv
 		return derp.BadRequest(location, "InboxActivity.UserID must not be zero")
 	}
 
+	// RULE: AS2 §5.1 -- blind addressing MUST NOT be disclosed to any other party, and
+	// RawActivity is served verbatim by InboxActivity.GetJSONLD() to the inbox collection and
+	// the SSE feed. This is the persistence boundary: the last point where the document is still
+	// ours alone, and the first point where it becomes readable. (BUG-07)
+	//
+	// Copy BEFORE stripping. RawActivity aliases a live map on both write paths -- Document.Map()
+	// hands back the underlying container, and Outbox2.Save assigns OutboxItem.Activity directly
+	// -- and callers upstream still read full addressing from it: IsPublic, isDirectMessage,
+	// CalcRecipients, and Deliver's RangeAddressees. Stripping in place would silently drop
+	// blind recipients from delivery enumeration.
+	if inboxActivity.RawActivity != nil {
+		rawActivity := property.Map(inboxActivity.RawActivity).Clone().Map()
+		assanitizer.StripKeys(rawActivity, vocab.PropertyBTo, vocab.PropertyBCC)
+		inboxActivity.RawActivity = mapof.Any(rawActivity)
+	}
+
 	// Validate the record using the schema
 	if _, err := service.Schema().Validate(inboxActivity); err != nil {
 		return derp.Wrap(err, location, "InboxActivity is invalid", inboxActivity)
@@ -140,19 +159,18 @@ func (service *Inbox) Save(session data.Session, inboxActivity *model.InboxActiv
 	return nil
 }
 
+// createOrUpdate saves an InboxActivity, reusing the identity of any earlier copy of the same activity
 func (service *Inbox) createOrUpdate(session data.Session, inboxActivity *model.InboxActivity, note string) error {
 
 	const location = "service.Inbox.createOrUpdate"
 
 	// Check to see if this is a new record
 	previousValue := model.NewInboxActivity()
-	if err := service.LoadByActivityID(session, inboxActivity.UserID, inboxActivity.ActivityID, &previousValue); err != nil {
-		if !derp.IsNotFound(err) {
-			return derp.Wrap(err, location, "Loading previous InboxActivity", inboxActivity)
-		}
-
+	if err := service.LoadByActivityID(session, inboxActivity.UserID, inboxActivity.ActivityID, &previousValue); err == nil {
 		inboxActivity.InboxActivityID = previousValue.InboxActivityID
 		inboxActivity.CreateDate = previousValue.CreateDate
+	} else if !derp.IsNotFound(err) {
+		return derp.Wrap(err, location, "Loading previous InboxActivity", inboxActivity)
 	}
 
 	// Save the value to the database
@@ -213,12 +231,13 @@ func (service *Inbox) ObjectType() string {
 	return "InboxActivity"
 }
 
-// New returns a fully initialized model.Inbox record as a data.Object.
+// ObjectNew returns a fully initialized model.InboxActivity record as a data.Object.
 func (service *Inbox) ObjectNew() data.Object {
 	result := model.NewInboxActivity()
 	return &result
 }
 
+// ObjectID returns the primary key of the provided InboxActivity object
 func (service *Inbox) ObjectID(object data.Object) primitive.ObjectID {
 
 	if message, ok := object.(*model.InboxActivity); ok {
@@ -228,16 +247,19 @@ func (service *Inbox) ObjectID(object data.Object) primitive.ObjectID {
 	return primitive.NilObjectID
 }
 
+// ObjectQuery populates the result value with all InboxActivities that match the provided criteria
 func (service *Inbox) ObjectQuery(session data.Session, result any, criteria exp.Expression, options ...option.Option) error {
 	return service.collection(session).Query(result, notDeleted(criteria), options...)
 }
 
+// ObjectLoad retrieves a single InboxActivity that matches the provided criteria, as a data.Object
 func (service *Inbox) ObjectLoad(session data.Session, criteria exp.Expression) (data.Object, error) {
 	result := model.NewInboxActivity()
 	err := service.Load(session, criteria, &result)
 	return &result, err
 }
 
+// ObjectSave saves the provided InboxActivity object to the database
 func (service *Inbox) ObjectSave(session data.Session, object data.Object, note string) error {
 
 	if message, ok := object.(*model.InboxActivity); ok {
@@ -247,6 +269,7 @@ func (service *Inbox) ObjectSave(session data.Session, object data.Object, note 
 	return derp.Internal("service.Inbox.ObjectSave", "Invalid object type", object)
 }
 
+// ObjectDelete removes the provided InboxActivity object from the database (virtual delete)
 func (service *Inbox) ObjectDelete(session data.Session, object data.Object, note string) error {
 
 	if message, ok := object.(*model.InboxActivity); ok {
@@ -256,10 +279,12 @@ func (service *Inbox) ObjectDelete(session data.Session, object data.Object, not
 	return derp.Internal("service.Inbox.ObjectDelete", "Invalid object type", object)
 }
 
+// ObjectUserCan always returns Unauthorized: InboxActivities are never edited through the generic data.Object path
 func (service *Inbox) ObjectUserCan(object data.Object, authorization model.Authorization, action string) error {
 	return derp.Unauthorized("service.InboxActivity", "Not Authorized")
 }
 
+// Schema returns the validating schema for InboxActivity objects
 func (service *Inbox) Schema() schema.Schema {
 	result := schema.New(model.InboxActivitySchema())
 	result.ID = "https://emissary.social/schemas/stream"
@@ -270,6 +295,7 @@ func (service *Inbox) Schema() schema.Schema {
  * Custom Queries
  ******************************************/
 
+// LoadByToken loads a single InboxActivity from a User's inbox, identified by its hex-encoded ID
 func (service *Inbox) LoadByToken(session data.Session, userID primitive.ObjectID, token string, result *model.InboxActivity) error {
 
 	const location = "service.Inbox.LoadByToken"
@@ -336,6 +362,7 @@ func (service *Inbox) IsDuplicateActivity(session data.Session, userID primitive
  * Realtime Updates
  ******************************************/
 
+// sendSSEUpdate publishes an InboxActivity to the realtime channels that its visibility calls for
 func (service *Inbox) sendSSEUpdate(activity *model.InboxActivity) {
 
 	// Send an update on the "Inbox" topic for this User

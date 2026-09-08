@@ -10,18 +10,27 @@ import (
 // InlineSuccess is a Step that displays an "inline success" message on a form
 type InlineSuccess struct {
 	Message *template.Template
+	Href    *template.Template
 }
 
+// NewInlineSuccess returns a fully initialized InlineSuccess step, or an error if its configuration is invalid
 func NewInlineSuccess(stepInfo mapof.Any) (InlineSuccess, error) {
 
 	message, err := template.New("").Funcs(FuncMap()).Parse(stepInfo.GetString("message"))
 
 	if err != nil {
-		return InlineSuccess{}, derp.Wrap(err, "model.step.NewInlineSuccess", "Parsing template")
+		return InlineSuccess{}, derp.Wrap(err, "model.step.NewInlineSuccess", "Parsing message template")
+	}
+
+	href, err := template.New("").Funcs(FuncMap()).Parse(stepInfo.GetString("href"))
+
+	if err != nil {
+		return InlineSuccess{}, derp.Wrap(err, "model.step.NewInlineSuccess", "Parsing href template")
 	}
 
 	return InlineSuccess{
 		Message: message,
+		Href:    href,
 	}, nil
 }
 

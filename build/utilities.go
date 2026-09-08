@@ -27,11 +27,18 @@ import (
 // WrapInlineSuccess sends a confirmation message to the #htmx-response-message element
 func WrapInlineSuccess(response http.ResponseWriter, message any) error {
 
+	// Content-Type must be explicit: Go's sniffer doesn't recognize `<span` as HTML, so an
+	// unlabeled fragment goes out as text/plain and renders as raw markup anywhere the
+	// browser shows the response directly (e.g. a non-htmx form submit on the setup console).
+	response.Header().Set("Content-Type", "text/html; charset=utf-8")
 	response.Header().Set("HX-Reswap", "innerHTML")
 	response.Header().Set("HX-Retarget", "#htmx-response-message")
 	response.WriteHeader(http.StatusOK)
 
-	if _, err := response.Write([]byte(`<span class="text-green">` + convert.String(message) + `</span>`)); err != nil {
+	// Escape the message: this span is swapped into the page as raw HTML.
+	escaped := stdhtml.EscapeString(convert.String(message))
+
+	if _, err := response.Write([]byte(`<span class="text-green">` + escaped + `</span>`)); err != nil {
 		return derp.Wrap(err, "build.WrapInlineSuccess", "Writing response. This should never happen", message)
 	}
 
@@ -43,6 +50,10 @@ func WrapInlineError(response http.ResponseWriter, err error) error {
 
 	derp.Report(err)
 
+	// Content-Type must be explicit: Go's sniffer doesn't recognize `<span` as HTML, so an
+	// unlabeled fragment goes out as text/plain and renders as raw markup anywhere the
+	// browser shows the response directly (BUG-109's headline symptom).
+	response.Header().Set("Content-Type", "text/html; charset=utf-8")
 	response.Header().Set("HX-Reswap", "innerHTML")
 	response.Header().Set("HX-Retarget", "#htmx-response-message")
 	response.WriteHeader(http.StatusOK)
@@ -73,6 +84,7 @@ func inlineErrorMessage(err error) string {
 	return derp.Message(err)
 }
 
+// WrapModal wraps the provided content in a modal window, and sets the htmx headers that display it
 func WrapModal(response http.ResponseWriter, content string, options ...string) string {
 
 	// These three headers make it a modal
@@ -101,6 +113,7 @@ func WrapModal(response http.ResponseWriter, content string, options ...string) 
 	return b.String()
 }
 
+// WrapModalWithCloseButton wraps the provided content in a modal window that has its own close button
 func WrapModalWithCloseButton(response http.ResponseWriter, content string, options ...string) string {
 	b := html.New()
 
@@ -110,6 +123,7 @@ func WrapModalWithCloseButton(response http.ResponseWriter, content string, opti
 	return WrapModal(response, content+b.String())
 }
 
+// WrapTooltip wraps the provided content in a tooltip, and sets the htmx headers that display it
 func WrapTooltip(response http.ResponseWriter, content string) string {
 
 	// These headers make it a modal
@@ -126,6 +140,7 @@ func WrapTooltip(response http.ResponseWriter, content string) string {
 	return b.String()
 }
 
+// WrapForm wraps the provided content in a form that posts back to the named endpoint
 func WrapForm(endpoint string, content string, encoding string, options ...string) string {
 
 	optionMap := parseOptions(options...)
@@ -139,6 +154,7 @@ func WrapForm(endpoint string, content string, encoding string, options ...strin
 
 	// Form Wrapper
 	b.Form("post", "").
+		ID(optionMap.GetString("id")).
 		Attr("hx-post", endpoint).
 		Attr("hx-swap", "none").
 		Attr("hx-push-url", "false").
@@ -155,14 +171,29 @@ func WrapForm(endpoint string, content string, encoding string, options ...strin
 	b.Div().Class("flex-row", "flex-align-center")
 	b.Div().Class("flex-grow")
 	{
-		submitLabel := first.String(optionMap.GetString("submit-label"), "Save Changes")
-		b.Button().Type("submit").ID("inline-save-button").Class("primary").TabIndex("0").Script("install SaveButton").InnerText(submitLabel).Close()
+		// Show the submit button
+		if submitButton := optionMap.GetString("submit-button"); submitButton != "hide" {
+			submitLabel := first.String(optionMap.GetString("submit-label"), "Save Changes")
+			b.Button().Type("submit").ID("inline-save-button").Class("primary").TabIndex("0").Script("install SaveButton").InnerText(submitLabel).Close()
+		} else {
+			b.Button().Type("submit").Class("hide").Close()
+		}
 
+		// Show the cancel button
 		if cancelButton := optionMap.GetString("cancel-button"); cancelButton != "hide" {
+
 			cancelLabel := first.String(optionMap.GetString("cancel-label"), "Cancel")
-			b.Space()
-			b.Button().Type("button").Script("on click trigger closeModal").TabIndex("0").InnerText(cancelLabel).Close()
-			b.Space()
+
+			if cancelHref := first.String(optionMap.GetString("cancel-href"), ""); cancelHref != "" {
+				b.Space()
+				b.A(cancelHref).Class("button").InnerText(cancelLabel).Close()
+				b.Space()
+
+			} else {
+				b.Space()
+				b.Button().Type("button").Script("on click trigger closeModal").TabIndex("0").InnerText(cancelLabel).Close()
+				b.Space()
+			}
 		}
 
 		b.Span().ID("htmx-response-message").Script("on submit from closest <form/> set my innerHTML to ''").Close()
@@ -189,6 +220,7 @@ func WrapForm(endpoint string, content string, encoding string, options ...strin
 	return b.String()
 }
 
+// WrapModalForm wraps the provided content in a form, inside a modal window
 func WrapModalForm(response http.ResponseWriter, endpoint string, content string, encoding string, options ...string) string {
 	return WrapModal(response, WrapForm(endpoint, content, encoding, options...), options...)
 }
@@ -198,12 +230,14 @@ func CloseModal(ctx echo.Context) {
 	ctx.Response().Header().Set("HX-Trigger", `{"closeModal":"", "refreshPage": ""}`)
 }
 
+// RefreshPage sets the response headers that tell htmx to reload the current page
 func RefreshPage(ctx echo.Context) {
 	header := ctx.Response().Header()
 	header.Set("HX-Trigger", "refreshPage")
 	header.Set("HX-Reswap", "none")
 }
 
+// TriggerEvent sets the response header that fires the named event on the client
 func TriggerEvent(ctx echo.Context, event string) {
 	ctx.Response().Header().Set("HX-Trigger", event)
 }
@@ -243,6 +277,7 @@ func replaceActionID(path string, newActionID string) string {
 	return "/" + parsedPath + "/" + newActionID
 }
 
+// TemplateLike is anything that can render itself into a Writer, which lets HTML and text templates share one code path
 type TemplateLike interface {
 	Execute(wr io.Writer, data interface{}) error
 }
@@ -376,6 +411,7 @@ func getTemplate(builder Builder) (model.Template, bool) {
 	return model.Template{}, false
 }
 
+// getSearchResult returns the SearchResult that represents the object this Builder is displaying
 func getSearchResult(builder Builder) model.SearchResult {
 
 	switch typed := builder.(type) {
@@ -399,6 +435,7 @@ func getSearchResult(builder Builder) model.SearchResult {
 	return model.SearchResult{}
 }
 
+// mapProductsToLookupCodes converts Products into form lookup codes, sorted by group then label
 func mapProductsToLookupCodes(products ...model.Product) sliceof.Object[form.LookupCode] {
 
 	lookupCodes := make([]form.LookupCode, len(products))
@@ -411,6 +448,7 @@ func mapProductsToLookupCodes(products ...model.Product) sliceof.Object[form.Loo
 	return lookupCodes
 }
 
+// mapCirclesToLookupCodes converts Circles into form lookup codes, sorted by group then label
 func mapCirclesToLookupCodes(circles ...model.Circle) sliceof.Object[form.LookupCode] {
 
 	lookupCodes := make([]form.LookupCode, len(circles))
@@ -423,6 +461,7 @@ func mapCirclesToLookupCodes(circles ...model.Circle) sliceof.Object[form.Lookup
 	return lookupCodes
 }
 
+// groupLookupCodes splits a flat list of lookup codes into one slice per group, special groups first
 func groupLookupCodes(lookupCodes []form.LookupCode) sliceof.Object[sliceof.Object[form.LookupCode]] {
 
 	// First, sort all LookupCodes into groups
@@ -457,6 +496,11 @@ func groupLookupCodes(lookupCodes []form.LookupCode) sliceof.Object[sliceof.Obje
 }
 
 // oEmbedURL returns the URL of this domain's oEmbed endpoint, describing the provided permalink
+//
+// TODO: (oembed/TODO.md Phase 9.5) Re-evaluate when the oEmbed rework lands: the
+// discovery-link primitives should replace this hand-built URL. NOTE this helper is
+// LIVE despite having no in-repo callers — bandwagon and qwertylicious templates call
+// it through Stream.OEmbedJSON/OEmbedXML, so its URL shape may not change casually.
 func oEmbedURL(host string, permalink string, format string) string {
 
 	// The permalink is escaped because it is a VALUE inside this URL's query string.  Raw

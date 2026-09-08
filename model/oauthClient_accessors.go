@@ -5,6 +5,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// OAuthClientSchema returns the rosetta schema that describes a OAuthClient
 func OAuthClientSchema() schema.Element {
 	return schema.Object{
 		Properties: schema.ElementMap{
@@ -24,6 +25,7 @@ func OAuthClientSchema() schema.Element {
 	}
 }
 
+// GetPointer returns a pointer to the named property. Implements schema.PointerGetter.
 func (client *OAuthClient) GetPointer(name string) (any, bool) {
 	switch name {
 
@@ -52,6 +54,7 @@ func (client *OAuthClient) GetPointer(name string) (any, bool) {
 	return nil, false
 }
 
+// GetStringOK returns the named property. Implements schema.StringGetter.
 func (client *OAuthClient) GetStringOK(name string) (string, bool) {
 
 	switch name {
@@ -63,6 +66,7 @@ func (client *OAuthClient) GetStringOK(name string) (string, bool) {
 	return "", false
 }
 
+// SetString writes the named property. Implements schema.StringSetter.
 func (client *OAuthClient) SetString(name string, value string) bool {
 
 	switch name {

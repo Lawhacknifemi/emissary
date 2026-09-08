@@ -12,8 +12,8 @@ import (
 // accidentally constructing a Sort) would surface as a Name() mismatch here. The config for each
 // case is the minimum required for that constructor to succeed.
 //
-// Note: a step's Name() is not always equal to its "do" key (e.g. do "set-args" -> Name "set-args",
-// do "sleep" -> Name "set-sleep", do "require-password" -> Name "requirePassword"),
+// Note: a step's Name() is not always equal to its "do" key
+// (e.g. do "require-password" -> Name "requirePassword"),
 // so expectedName is asserted explicitly per case.
 func TestNew_Dispatch(t *testing.T) {
 
@@ -70,13 +70,16 @@ func TestNew_Dispatch(t *testing.T) {
 		{"set-privileges", mapof.Any{}, "set-privileges"},
 		{"set-query-param", mapof.Any{}, "set-query-param"},
 		{"set-response", mapof.Any{}, "set-response"},
+		{"set-sharing", mapof.Any{"role": "viewer", "group": "anonymous"}, "set-sharing"},
 		{"set-simple-sharing", mapof.Any{"role": "editor"}, "set-simple-sharing"},
 		{"set-state", mapof.Any{"state": "published"}, "set-state"},
 		{"set-thumbnail", mapof.Any{}, "set-thumbnail"},
-		{"sleep", mapof.Any{}, "set-sleep"},
-		{"sort", mapof.Any{}, "set-sort"},
+		{"sleep", mapof.Any{}, "sleep"},
+		{"sort", mapof.Any{}, "sort"},
 		{"sort-attachments", mapof.Any{}, "sort-attachments"},
 		{"sort-widgets", mapof.Any{}, "sort-widgets"},
+		{"startup-create-streams", mapof.Any{}, "startup-create-streams"},
+		{"startup-save-task", mapof.Any{"value": "sample-content"}, "startup-save-task"},
 		{"trigger-event", mapof.Any{}, "trigger-event"},
 		{"unpublish", mapof.Any{}, "unpublish"},
 		{"upload-attachments", mapof.Any{}, "upload-attachments"},
@@ -120,11 +123,13 @@ func TestNew_Dispatch(t *testing.T) {
 	}
 }
 
+// TestNew_UnrecognizedStep verifies that an unknown step name is rejected
 func TestNew_UnrecognizedStep(t *testing.T) {
 	_, err := New(mapof.Any{"do": "this-step-does-not-exist"})
 	require.NotNil(t, err)
 }
 
+// TestNew_MissingDo verifies that a step with no "do" key is rejected
 func TestNew_MissingDo(t *testing.T) {
 	// An empty "do" is unrecognized and returns an error.
 	_, err := New(mapof.Any{})

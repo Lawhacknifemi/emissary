@@ -33,6 +33,7 @@ type SearchQuery struct {
 	journal.Journal `bson:",inline"`
 }
 
+// NewSearchQuery returns a fully initialized, empty SearchQuery
 func NewSearchQuery() SearchQuery {
 	return SearchQuery{
 		SearchQueryID: primitive.NewObjectID(),
@@ -105,6 +106,7 @@ func (searchQuery SearchQuery) Expression() exp.Expression {
 
 }
 
+// Match returns TRUE if the provided SearchResult satisfies every criterion in this SearchQuery
 func (searchQuery SearchQuery) Match(searchResult *SearchResult) bool {
 
 	// Match Type(s)
@@ -226,7 +228,7 @@ func (searchQuery *SearchQuery) MakeSignature() {
 
 	// Make a hash of the plaintext for easy indexing
 	h := md5.New()
-	io.WriteString(h, plaintext.String()) // nolint:errcheck
+	_, _ = io.WriteString(h, plaintext.String()) // hash.Hash.Write is documented never to return an error
 	signature := base64.StdEncoding.EncodeToString(h.Sum(nil))
 
 	// Save the signed value to the SearchQuery and GTFO.

@@ -14,6 +14,8 @@ type Domain struct {
 	DomainID             primitive.ObjectID              `bson:"_id"`                  // This is the internal ID for the domain.  It should not be available via the web service.
 	IconID               primitive.ObjectID              `bson:"iconId"`               // ID of the logo to use for this domain (as an icon on other websites, etc)
 	ImageID              primitive.ObjectID              `bson:"imageId"`              // ID of theimage to use for this domain (on sign in pages, etc)
+	StateID              string                          `bson:"stateId"`              // Empty == LIVE
+	StartupTasks         sliceof.String                  `bson:"startupTasks"`         // Completed Tasks
 	Hostname             string                          `bson:"hostname"`             // Hostname of this domain (e.g. "example.com")
 	Label                string                          `bson:"label"`                // Human-friendly name displayed at the top of this domain
 	Description          string                          `bson:"description"`          // Human-friendly description of this domain
@@ -22,7 +24,7 @@ type Domain struct {
 	InboxID              string                          `bson:"inboxId"`              // ID of the default inbox template to use for this domain
 	OutboxID             string                          `bson:"outboxId"`             // ID of the default outbox template to use for this domain
 	Forward              string                          `bson:"forward"`              // If present, then all requests for this domain should be forwarded to the designated new domain.
-	ThemeData            mapof.Any                       `bson:"themeData"`            // Custom data stored in this domain
+	ThemeData            mapof.Any                       `bson:"themeData"`            // Custom data for the Theme, defined by the Theme's own schema/form. PUBLIC: rendered into pages.
 	RegistrationData     mapof.String                    `bson:"registrationData"`     // Custom data for signup template stored in this domain
 	ColorMode            string                          `bson:"colorMode"`            // Color mode for this domain (e.g. "LIGHT", "DARK", or "AUTO")
 	MLSMode              string                          `bson:"mlsMode"`              // MLS mode for this domain (e.g. "ALL", "GROUPS", or "NONE")
@@ -30,7 +32,7 @@ type Domain struct {
 	DefaultAnonymous     string                          `bson:"defaultAnonymous"`     // Default page for anonymous users (defaults to "/home")
 	DefaultAuthenticated string                          `bson:"defaultAuthenticated"` // Default page for authenticated users (defaults to "/@me")
 	DefaultOwner         string                          `bson:"defaultOwner"`         // Default page for owners (defaults to "/admin")
-	Data                 mapof.String                    `bson:"data"`                 // Custom data stored in this domain
+	Data                 mapof.String                    `bson:"data"`                 // Operational settings for this domain (VAPID keys, feature flags). SECRET: never render into a page.
 	DatabaseVersion      uint                            `bson:"databaseVersion"`      // Version of the database schema
 	Syndication          sliceof.Object[form.LookupCode] `bson:"syndication"`          // List of external services that this domain can syndicate to
 	Connections          mapof.Matchable[Connection]     `bson:"connections"`          // Map of external connections for this domain
@@ -41,12 +43,15 @@ type Domain struct {
 // NewDomain returns a fully initialized Domain object
 func NewDomain() Domain {
 	return Domain{
-		ThemeData:   mapof.NewAny(),
-		ColorMode:   DomainColorModeAuto,
-		MLSGroupIDs: sliceof.NewString(),
-		Data:        mapof.NewString(),
-		Syndication: sliceof.NewObject[form.LookupCode](),
-		Connections: mapof.NewMatchable[Connection](),
+		ThemeID:      "default",
+		ThemeData:    mapof.NewAny(),
+		ColorMode:    DomainColorModeAuto,
+		MLSGroupIDs:  sliceof.NewString(),
+		Data:         mapof.NewString(),
+		Syndication:  sliceof.NewObject[form.LookupCode](),
+		Connections:  mapof.NewMatchable[Connection](),
+		StartupTasks: sliceof.NewString(),
+		StateID:      "STARTUP",
 	}
 }
 
@@ -132,7 +137,7 @@ func (domain *Domain) Host() string {
 func (domain *Domain) IconURL() string {
 
 	if domain.IconID.IsZero() {
-		return ""
+		return domain.Host() + "/.themes/global/resources/emissary/Emissary-Icon-Black.svg"
 	}
 
 	return domain.Host() + "/.domain/attachments/" + domain.IconID.Hex()
@@ -142,7 +147,7 @@ func (domain *Domain) IconURL() string {
 func (domain *Domain) ImageURL() string {
 
 	if domain.ImageID.IsZero() {
-		return ""
+		return domain.Host() + "/.themes/global/resources/emissary/Emissary-Icon-Black.svg"
 	}
 
 	return domain.Host() + "/.domain/attachments/" + domain.ImageID.Hex()
@@ -236,12 +241,18 @@ func (domain *Domain) HasConnectionProvider(provider string) bool {
 	return connection.Active
 }
 
+// GetConnectionForProvider returns the Connection configured for the named provider, if one exists
 func (domain *Domain) GetConnectionForProvider(provider string) (Connection, bool) {
 	connection, exists := domain.Connections[provider]
 	return connection, exists
 }
 
+// DefaultPage returns the landing page for a visitor, based on how they are signed in
 func (domain Domain) DefaultPage(authorization Authorization) string {
+
+	if domain.StateID == DomainStateStartup {
+		return "/startup"
+	}
 
 	if authorization.NotAuthenticated() {
 		return domain.DefaultPage_Anonymous()
@@ -254,6 +265,7 @@ func (domain Domain) DefaultPage(authorization Authorization) string {
 	return domain.DefaultPage_Authenticated()
 }
 
+// DefaultPage_Anonymous returns the landing page for a visitor who is not signed in
 func (domain Domain) DefaultPage_Anonymous() string {
 	if domain.DefaultAnonymous != "" {
 		return domain.DefaultAnonymous
@@ -262,6 +274,7 @@ func (domain Domain) DefaultPage_Anonymous() string {
 	return "/home"
 }
 
+// DefaultPage_Authenticated returns the landing page for a signed-in User
 func (domain Domain) DefaultPage_Authenticated() string {
 	if domain.DefaultAuthenticated != "" {
 		return domain.DefaultAuthenticated
@@ -270,6 +283,7 @@ func (domain Domain) DefaultPage_Authenticated() string {
 	return "/@me/newsfeed"
 }
 
+// DefaultPage_Owner returns the landing page for a domain owner
 func (domain Domain) DefaultPage_Owner() string {
 	if domain.DefaultOwner != "" {
 		return domain.DefaultOwner

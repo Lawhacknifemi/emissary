@@ -109,6 +109,11 @@ func (service *ActivityStream) Client(actorType string, actorID primitive.Object
 	userAgent := service.hostname + " /Emissary@v" + service.version + " (https://emissary.social)"
 
 	// Build a new client stack
+
+	// TODO: (oembed/TODO.md Phases 11.3 + RSS-FOLLOWING-RESTORE.md) When URL lookups
+	// return, do NOT restore this legacy path — use sherlock's new metadata package
+	// (sherlock.Client.Metadata → metadata.Card), which merges oEmbed, Open Graph,
+	// Twitter Cards, and HTML signals with SSRF/body-cap guards built in.
 	/* Removing legacy Sherlock lookups (RSS, oEmbed, OGP, etc) since these are not being used.
 	sherlockClient := sherlock.NewClient(
 		sherlock.WithKeyPairFunc(service.KeyPairFunc(actorType, actorID)),
@@ -353,6 +358,7 @@ func (service *ActivityStream) QueryActors(queryString string) ([]model.ActorSum
 	return result, nil
 }
 
+// looksLikeValidURI returns TRUE if the provided value is a URI that this server knows how to fetch
 func (service *ActivityStream) looksLikeValidURI(uri string) bool {
 
 	if sherlock.IsValidAddress(uri) {
@@ -499,23 +505,8 @@ func (service *ActivityStream) GetRecipient(recipient string) (string, string, e
 	return document.ID(), document.Inbox().String(), nil
 }
 
-// PublicKeyFinder returns the PEM-encoded public key for the provided keyID, loading the owning
-// Actor's document through the (cache-revalidating) app client
-func (service *ActivityStream) PublicKeyFinder(keyID string) (string, error) {
-
-	const location = "service.ActivityStream.PublicKeyFinder"
-
-	// Load the public key from it's URL
-	// This works because the ashash client will resolve the keyID from the Actor's JSON-LD
-	// WithWriteOnly forces a cache revalidation, which we need to ensure that we get the latest key (in case of rotation)
-	publicKey, err := service.AppClient().Load(keyID, ascache.WithWriteOnly())
-
-	if err != nil {
-		return "", derp.Wrap(err, location, "Loading public key", keyID)
-	}
-
-	return publicKey.PublicKeyPEM(), nil
-}
+// Signature verification lives in activityStream_signature.go, which owns both the key lookup and
+// the rules about when a key may be re-fetched.
 
 // KeyPairFunc returns a function that will locate the public/private key pair
 // for the specidied URL.  This can only be used for local URLs

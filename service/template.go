@@ -66,6 +66,7 @@ func NewTemplate(filesystemService Filesystem, registrationService *Registration
  * Lifecycle Methods
  ******************************************/
 
+// Refresh updates this service with the latest configuration values
 func (service *Template) Refresh(locations sliceof.Object[mapof.String]) {
 
 	// Reset the "Refresh" channel
@@ -259,6 +260,7 @@ func (service *Template) loadTemplates(haltOnError bool) error {
 	return nil
 }
 
+// maybeHalt reports an error, and exits the process if the caller asked it to be fatal
 func maybeHalt(err error, halt bool) {
 	derp.Report(err)
 
@@ -267,6 +269,7 @@ func maybeHalt(err error, halt bool) {
 	}
 }
 
+// Add parses a template definition and registers it under the provided templateID
 func (service *Template) Add(templateID string, filesystem fs.FS, definition []byte) error {
 
 	const location = "service.template.Add"
@@ -309,6 +312,7 @@ func (service *Template) Add(templateID string, filesystem fs.FS, definition []b
 	return nil
 }
 
+// validateTemplates checks every registered Template against the model registry, and collects the problems it finds
 func (service *Template) validateTemplates() sliceof.Object[derp.Error] {
 
 	log.Debug().Msg("Template Service: Validating templates...")
@@ -470,6 +474,25 @@ func (service *Template) validateTemplates() sliceof.Object[derp.Error] {
 					}
 				}
 
+				// RULE: If the step is restricted to specific template roles, then verify that
+				// this Template declares one of them.  RequiredModel alone is not enough: several
+				// Templates can build the same model object while playing different roles, so a
+				// step meant for the admin console would otherwise be usable on a public page.
+				if requirer, ok := step.(modelStep.TemplateRoleRequirer); ok {
+					if requiredRoles := requirer.RequiredTemplateRoles(); len(requiredRoles) > 0 {
+						if !slices.Contains(requiredRoles, template.TemplateRole) {
+							errors.Append(derp.Validation(
+								"Step can only be used in Templates with a specific templateRole",
+								"template: "+templateID,
+								"action: "+actionID,
+								"step: "+step.Name(),
+								"templateRoles required by step: "+strings.Join(requiredRoles, ", "),
+								"templateRole defined in template: "+template.TemplateRole,
+							))
+						}
+					}
+				}
+
 				// RULE: States used in action steps must be defined
 				for _, state := range step.RequiredStates() {
 					if !template.IsValidState(state) {
@@ -600,6 +623,7 @@ func (service *Template) calculateAccessLists() error {
  * Common Data Methods
  ******************************************/
 
+// Names returns the ID of every registered Template, sorted
 func (service *Template) Names() []string {
 
 	result := rosettamaps.Keys(service.templates)
@@ -705,6 +729,7 @@ func (service *Template) ListByContainerLimited(containedByRole string, limitRol
  * Admin Templates
  ******************************************/
 
+// LoadAdmin retrieves an admin Template, which is stored under an "admin-" prefix
 func (service *Template) LoadAdmin(templateID string) (model.Template, error) {
 
 	const location = "service.Template.LoadAdmin"
