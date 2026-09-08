@@ -30,7 +30,7 @@ require (
 	github.com/benpate/steranko v0.29.0
 	github.com/benpate/table v0.8.0
 	github.com/benpate/toot v0.5.0
-	github.com/benpate/toot-echo v0.0.0-00010101000000-000000000000
+	github.com/benpate/toot-echo v0.0.0-20260907105002-3ee11a70c1f6
 	github.com/benpate/turbine v0.7.0
 	github.com/benpate/uri v0.5.0
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -42,7 +42,6 @@ require (
 	github.com/fatih/color v1.19.0
 	github.com/fclairamb/afero-s3 v0.3.1
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/go-playground/form/v4 v4.3.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/feeds v1.2.0
 	github.com/hairyhenderson/go-fsimpl v0.4.2
@@ -97,6 +96,7 @@ require (
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.0 // indirect
 	github.com/go-git/go-git/v5 v5.19.1 // indirect
+	github.com/go-playground/form/v4 v4.3.0 // indirect
 	github.com/go-test/deep v1.1.1 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
@@ -140,6 +140,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/benpate/toot => /Users/sheriflawal/Dev/toot
+replace github.com/benpate/toot => github.com/Lawhacknifemi/toot v0.5.1-0.20260907102547-bcac81023ae2
 
-replace github.com/benpate/toot-echo => /Users/sheriflawal/Dev/toot-echo
+replace github.com/benpate/toot-echo => github.com/Lawhacknifemi/toot-echo v0.0.0-20260907105002-3ee11a70c1f6
