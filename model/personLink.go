@@ -136,11 +136,12 @@ func (person PersonLink) Toot() object.Account {
 	// Local accounts use the same short hex UserID as model.User.Toot(), so the
 	// same account is identified consistently everywhere it appears (a status's
 	// embedded author vs. that same account fetched directly). Remote/unlinked
-	// people fall back to their profile URL -- PersonLink has no session/factory
-	// access here to resolve them to the ascache-backed opaque ID GetAccount_Lookup
-	// uses (see resolveAccountURL/loadUserByAccountID in handler/mastodon/accounts.go);
-	// closing that gap needs Toot() to take a lookup dependency, which is a bigger
-	// change than this pass makes.
+	// people currently fall back to their raw profile URL; resolveAccountURL in
+	// handler/mastodon/accounts.go still accepts a bare URL, so this resolves --
+	// but it is inconsistent with the "u_..." token EncodeRemoteAccountID produces
+	// for the same account via GetAccount_Lookup. Switching this to
+	// EncodeRemoteAccountID(person.ProfileURL) closes the gap (encoding needs no
+	// session/factory); left as a follow-up.
 	id := person.ProfileURL
 
 	if !person.UserID.IsZero() {
@@ -162,7 +163,7 @@ func (person PersonLink) Toot() object.Account {
 		Acct:        person.Username, // Already in "user" or "user@domain.social" form -- see the field comment.
 		DisplayName: person.Name,
 		Avatar:      person.IconURL,
-		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+		CreatedAt:   MastodonDate(time.Now()),
 	}
 }
 

@@ -569,9 +569,10 @@ func (user *User) JSONFeedURL() string {
 // against a live server, not just a documentation reading -- so every local account
 // needs a short, stable, non-URL ID here. handler/mastodon/accounts.go's
 // loadUserByAccountID/resolveAccountURL/resolveAccountID accept and resolve both
-// forms (this short hex ID for local accounts, and the ascache-backed opaque ID
-// GetAccount_Lookup mints for remote ones), so the rest of the API stays consistent
-// no matter which form a client holds for a given account.
+// forms (this short hex ID for local accounts, and the URL-encoded opaque ID
+// model.EncodeRemoteAccountID produces -- returned by GetAccount_Lookup -- for
+// remote ones), so the rest of the API stays consistent no matter which form a
+// client holds for a given account.
 func (user User) Toot() object.Account {
 	return object.Account{
 		ID:             user.UserID.Hex(),
@@ -583,7 +584,7 @@ func (user User) Toot() object.Account {
 		Avatar:         user.ActivityPubIconURL(),
 		Header:         user.ActivityPubImageURL(),
 		Discoverable:   user.IsPublic,
-		CreatedAt:      time.UnixMilli(user.CreateDate).UTC().Format(time.RFC3339), // CreateDate is milliseconds (journal UnixMilli)
+		CreatedAt:      MastodonDate(time.UnixMilli(user.CreateDate)), // CreateDate is milliseconds (journal UnixMilli)
 		FollowersCount: user.FollowerCount,
 		FollowingCount: user.FollowingCount,
 	}
