@@ -319,7 +319,7 @@ func (newsItem NewsItem) Toot() object.Status {
 	return object.Status{
 		ID:          newsItem.NewsItemID.Hex(),
 		URI:         newsItem.Origin.URL,
-		CreatedAt:   time.UnixMilli(newsItem.CreateDate).UTC().Format(time.RFC3339), // CreateDate is milliseconds (journal UnixMilli)
+		CreatedAt:   MastodonDate(time.UnixMilli(newsItem.CreateDate)), // CreateDate is milliseconds (journal UnixMilli)
 		SpoilerText: "",                                                             // newsItem.Label,
 		Content:     "",                                                             // newsItem.ContentHTML,
 	}

@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/EmissarySocial/emissary/config"
@@ -767,6 +768,14 @@ func errorHandler(err error, ctx echo.Context) {
 		// misconfigured Accept is exactly the population being diagnosed. (BUG-20)
 		if sigs.HasSignature(request) {
 			_ = ctx.String(derp.ErrorCode(err), derp.Message(err))
+			return
+		}
+
+		// RULE: The JSON API (Mastodon-compatible and otherwise) is a machine too. An OAuth client
+		// needs the real 401 and a JSON body to know its bearer token expired and refresh it; a 303
+		// to the HTML /signin page is something it cannot parse, and its decoder fails on the HTML.
+		if strings.HasPrefix(request.URL.Path, "/api/") {
+			_ = ctx.JSON(derp.ErrorCode(err), mapof.Any{"error": derp.Message(err)})
 			return
 		}
 

@@ -10,7 +10,6 @@ import (
 	"github.com/benpate/data"
 	"github.com/benpate/data/option"
 	"github.com/benpate/derp"
-	"github.com/benpate/exp"
 	"github.com/benpate/hannibal/streams"
 	"github.com/benpate/toot"
 	"github.com/benpate/toot/object"
@@ -36,60 +35,54 @@ func loadUserByAccountID(factory *service.Factory, session data.Session, id stri
 	return user, err
 }
 
-// resolveAccountURL resolves a Mastodon account ID (local hex ID, cached-remote-actor
-// hex ID, or actor URL -- see loadUserByAccountID) to the account's real, federatable
-// profile URL. Used wherever a real URL is required (e.g. creating a Following record
-// to actually follow the account), not just for loading the local User row.
+// resolveAccountURL resolves a Mastodon account ID to the account's real,
+// federatable profile URL. It accepts the ID forms Emissary hands out or might
+// receive:
+//
+//   - a local User's hex ID          -> that User's ActivityPub URL
+//   - an encoded remote ID ("u_...")  -> the actor URL packed into it (no DB lookup)
+//   - a bare actor URL                -> itself (e.g. a status's embedded author)
+//
+// Anything else is an unknown ID and returns derp.NotFound. Used wherever a real
+// URL is required (e.g. creating a Following record), not just for loading a
+// local User row.
 func resolveAccountURL(factory *service.Factory, session data.Session, id string) (string, error) {
 
 	const location = "handler.mastodon_resolveAccountURL"
 
+	// Local account?
 	if user, err := loadUserByAccountID(factory, session, id); err == nil {
 		return user.ActivityPubURL(), nil
 	}
 
-	// Not a local account. If it's a hex ID, it may be a cached remote actor's
-	// ascache document ID (see resolveAccountID) -- resolve that back to the actor's
-	// real URL.
-	if objectID, err := primitive.ObjectIDFromHex(id); err == nil {
-
-		for value := range factory.ActivityStream().Range(session.Context(), exp.Equal("_id", objectID), option.MaxRows(1)) {
-			if len(value.URLs) > 0 {
-				return value.URLs[0], nil
-			}
-		}
-
-		// It parsed as one of our opaque IDs, but no cache row matches it any more --
-		// most likely its cache entry expired and was re-fetched under a new ID (see
-		// ascache.Client.Load/save, which always mints a new ObjectID on a fresh fetch).
-		// Fail loudly instead of silently treating the ID string as a URL, which would
-		// corrupt whatever the caller does next (e.g. Following.URL).
-		return "", derp.NotFound(location, "Account not found", id)
+	// One of our encoded remote IDs? Decode it back to the actor URL with no
+	// database lookup, so it stays valid however many times the actor's ascache
+	// row has been recycled.
+	if actorURL, ok := model.DecodeRemoteAccountID(id); ok {
+		return actorURL, nil
 	}
 
-	// Doesn't parse as a hex ID at all, so it's presumably already a URL.
-	return id, nil
+	// A bare actor URL (e.g. the embedded author of a timeline status, before
+	// PersonLink.Toot() is switched to the encoded form).
+	if parsed, err := url.Parse(id); err == nil && parsed.IsAbs() {
+		return id, nil
+	}
+
+	return "", derp.NotFound(location, "Unrecognized account ID", id)
 }
 
-// resolveAccountID resolves an actor's real URL to a stable, short, opaque Mastodon
-// account ID: the local User's own hex ID for a local account (matching
-// model.User.Toot()), or the cached ascache document's own hex ID for a remote one
-// (reusing the row GetAccount_Lookup's own client.Load() call just populated, the
-// same way local accounts reuse their existing User._id -- see conversation notes on
-// why a URL-shaped ID breaks the official Mastodon iOS app's local account cache).
-// Falls back to the URL itself if neither resolves (should not normally happen right
-// after a successful Load()).
-func resolveAccountID(factory *service.Factory, session data.Session, url string) string {
+// resolveAccountID returns a stable Mastodon account ID for an actor URL: the
+// local User's own hex ID for a local account (matching model.User.Toot()), or
+// the URL encoded into an opaque "u_..." token for a remote one. The remote form
+// is a pure function of the URL -- NOT the ascache row's _id, which is reminted
+// on every refetch -- so an ID handed to a client never goes stale.
+func resolveAccountID(factory *service.Factory, session data.Session, actorURL string) string {
 
-	if user, err := loadUserByAccountID(factory, session, url); err == nil {
+	if user, err := loadUserByAccountID(factory, session, actorURL); err == nil {
 		return user.UserID.Hex()
 	}
 
-	for value := range factory.ActivityStream().Range(session.Context(), exp.Equal("urls", url), option.MaxRows(1)) {
-		return value.ValueID.Hex()
-	}
-
-	return url
+	return model.EncodeRemoteAccountID(actorURL)
 }
 
 // mapDocumentToAccount maps a fetched remote actor document to a Mastodon Account.
@@ -124,7 +117,7 @@ func mapDocumentToAccount(factory *service.Factory, session data.Session, docume
 		Avatar:      document.Icon().URL(),
 		URL:         document.URL(),
 		Note:        document.Summary(),
-		CreatedAt:   createdAt.UTC().Format(time.RFC3339),
+		CreatedAt:   model.MastodonDate(createdAt),
 	}
 }
 
