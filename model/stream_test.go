@@ -476,3 +476,18 @@ func TestStream_AllowReplies(t *testing.T) {
 	require.Nil(t, s.Set(&stream, "allowReplies", "true"))
 	require.Equal(t, ReplyPolicyEveryone, stream.ReplyPolicy)
 }
+
+// TestStreamToot_EditedAt confirms edited_at is sent only for a Stream its author has edited
+func TestStreamToot_EditedAt(t *testing.T) {
+
+	stream := NewStream()
+	stream.PublishDate = time.Date(2026, 11, 12, 15, 0, 0, 0, time.UTC).Unix()
+
+	require.Empty(t, stream.Toot("https://example.com").EditedAt, "an unedited post carries no edited_at")
+
+	stream.EditDate = time.Date(2026, 11, 12, 15, 30, 0, 0, time.UTC).Unix()
+	status := stream.Toot("https://example.com")
+
+	require.Equal(t, MastodonDate(time.Unix(stream.EditDate, 0)), status.EditedAt)
+	require.Equal(t, MastodonDate(time.Unix(stream.PublishDate, 0)), status.CreatedAt, "editing does not move created_at")
+}
