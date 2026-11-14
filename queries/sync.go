@@ -36,6 +36,10 @@ func SyncSharedIndexes(ctx context.Context, session *mongo.Database) {
 		derp.Report(err)
 	}
 
+	if err := sync.LinkPreview(ctx, session); err != nil {
+		derp.Report(err)
+	}
+
 	if err := sync.Log(ctx, session); err != nil {
 		derp.Report(err)
 	}
